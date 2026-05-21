@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SETRI — Painel de Pendências</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',sans-serif;background:#F8FAFC;color:#1A2740;min-height:100vh}
@@ -16,6 +17,9 @@ body{font-family:'DM Sans',sans-serif;background:#F8FAFC;color:#1A2740;min-heigh
 .pnl-header-right{background:#2E5FA3;padding:14px 28px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px}
 .pnl-header-right .lbl{font-size:10px;color:#AACCE8;letter-spacing:1.5px;text-transform:uppercase}
 .pnl-header-right .dt{font-size:13px;font-weight:600;color:#fff;font-family:'DM Mono',monospace}
+.pnl-header-right .usr{font-size:10.5px;color:#AACCE8;margin-top:4px;display:flex;align-items:center;gap:8px}
+.btn-sair{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;font-size:10px;padding:2px 9px;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif}
+.btn-sair:hover{background:rgba(255,255,255,.18)}
 .abar{background:#FFF7ED;border-bottom:2px solid #FED7AA;padding:10px 28px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:12.5px;font-weight:500;color:#92400E}
 .abar.off{display:none}
 .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 28px;background:#EEF4FB;border-bottom:1px solid #E2EAF4;max-width:1500px;margin:0 auto;width:100%}
@@ -90,7 +94,17 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 .form-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
 .btn-cancelar{background:none;border:1px solid #E2EAF4;border-radius:8px;padding:8px 18px;font-size:13px;cursor:pointer;color:#64748B;font-family:'DM Sans',sans-serif}
 .btn-confirmar{background:#1F3864;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
-.linha-gerada{background:#F8FAFC;border-radius:8px;padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;word-break:break-all;margin-bottom:10px;border-left:3px solid #2E5FA3;line-height:1.6}
+.login-tela{position:fixed;inset:0;background:linear-gradient(135deg,#1F3864 0%,#2E5FA3 100%);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.login-card{background:#fff;padding:36px 40px;border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.25);max-width:380px;width:100%;text-align:center}
+.login-supra{font-size:10px;letter-spacing:2px;color:#7BAFD4;text-transform:uppercase;margin-bottom:6px;font-weight:600}
+.login-titulo{font-size:20px;font-weight:700;color:#1F3864;margin-bottom:6px}
+.login-sub{font-size:13px;color:#64748B;margin-bottom:24px;line-height:1.5}
+#g_id_signin{display:flex;justify-content:center;margin-bottom:8px;min-height:44px}
+.login-erro{background:#FEF2F2;color:#B91C1C;border-radius:8px;padding:10px 14px;font-size:12px;margin-top:16px;line-height:1.4;text-align:left}
+.login-loading{font-size:12px;color:#64748B;margin-top:12px}
+.toast{position:fixed;bottom:24px;right:24px;background:#1F3864;color:#fff;padding:12px 18px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2);z-index:600;opacity:0;transform:translateY(10px);transition:all .25s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{background:#B91C1C}
 @media(max-width:768px){
   .pnl-header-inner{flex-direction:column}
   .cards{padding:12px 16px;grid-template-columns:repeat(3,1fr)}
@@ -102,6 +116,19 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 </style>
 </head>
 <body>
+
+<div class="login-tela" id="loginTela">
+  <div class="login-card">
+    <div class="login-supra">Prefeitura do Recife · SEFIN · SETRI</div>
+    <div class="login-titulo">Painel de Pendências</div>
+    <div class="login-sub">Entre com a conta Google que tem acesso à planilha.</div>
+    <div id="g_id_signin"></div>
+    <div class="login-loading" id="loginLoading" style="display:none">Verificando acesso…</div>
+    <div class="login-erro" id="loginErro" style="display:none"></div>
+  </div>
+</div>
+
+<div id="appConteudo" style="display:none">
 <div class="pnl-header">
   <div class="pnl-header-inner">
     <div class="pnl-header-brand">
@@ -111,6 +138,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
     <div class="pnl-header-right">
       <div class="lbl">Atualizado em</div>
       <div class="dt" id="dt">—</div>
+      <div class="usr"><span id="userEmail"></span><button class="btn-sair" onclick="sair()">Sair</button></div>
     </div>
   </div>
 </div>
@@ -160,6 +188,8 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
   <div class="vazio" id="vazio">Nenhum item encontrado.</div>
 </div>
 <div class="rodape">Uso interno — Secretaria Executiva de Tributação / SEFIN / Prefeitura do Recife</div>
+</div>
+
 <div class="modal-bg off" id="modalBg">
   <div class="modal">
     <div class="modal-header">
@@ -169,181 +199,347 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
     <div id="modalCorpo"></div>
   </div>
 </div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-const URL_ENC="https://docs.google.com/spreadsheets/d/e/2PACX-1vTsEOahaYQ9CRw1TtV7ewiIqWedwaVVWsuor3W7NiDDX9yNN0X1bqGyeKq6sI-7RPp7LWpbI60eLtYX/pub?gid=0&single=true&output=csv";
-const URL_OBS="https://docs.google.com/spreadsheets/d/e/2PACX-1vTsEOahaYQ9CRw1TtV7ewiIqWedwaVVWsuor3W7NiDDX9yNN0X1bqGyeKq6sI-7RPp7LWpbI60eLtYX/pub?gid=1999846350&single=true&output=csv";
-const SETORES=["GGAT","GMAT","GTI","GAC","GTM","GCR","SETRE","EMPREL","Outros"];
-let ITENS=[],OBS=[],F={status:"todos",setor:"todos",origem:"todas"};
+const CLIENT_ID = '864961214405-bipsb4fk0sr0sgi8m9ei81u87rhjshc4.apps.googleusercontent.com';
+const API_URL = 'https://script.google.com/macros/s/AKfycbwrRA69lKbwGinU0WxXqjqdxxTkqcznrCYJy_1fxC3iMUu1mOKP0OOkjA4fVUegDesG/exec';
+const SETORES = ["GGAT","GMAT","GTI","GAC","GTM","GCR","SETRE","EMPREL","Outros"];
 
-function parseCSV(txt){
-  const linhas=txt.trim().split("\n");
-  const headers=linhas[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
-  return linhas.slice(1).map(linha=>{
-    const cols=[];let cur="",inQ=false;
-    for(let c of linha){
-      if(c==='"'){inQ=!inQ;continue;}
-      if(c===','&&!inQ){cols.push(cur.trim());cur="";continue;}
-      cur+=c;
-    }
-    cols.push(cur.trim());
-    const obj={};headers.forEach((h,i)=>obj[h]=(cols[i]||"").replace(/^"|"$/g,""));
-    return obj;
-  }).filter(r=>r[headers[0]]);
+let idToken = null;
+let userEmail = null;
+let ITENS = [], OBS = [];
+let F = {status:"todos", setor:"todos", origem:"todas"};
+
+// === LOGIN ===
+function aguardarGSI(cb){
+  if (window.google && window.google.accounts && window.google.accounts.id) return cb();
+  setTimeout(function(){ aguardarGSI(cb); }, 100);
 }
+window.addEventListener('load', function(){
+  aguardarGSI(function(){
+    google.accounts.id.initialize({
+      client_id: CLIENT_ID,
+      callback: aposLogin,
+      auto_select: true,
+      cancel_on_tap_outside: false
+    });
+    google.accounts.id.renderButton(
+      document.getElementById('g_id_signin'),
+      {theme:'filled_blue', size:'large', text:'signin_with', shape:'pill', width:300}
+    );
+    google.accounts.id.prompt();
+  });
+});
 
-async function carregarDados(){
-  document.getElementById("loading").style.display="block";
-  document.getElementById("tab").style.display="none";
-  document.getElementById("vazio").style.display="none";
-  try{
-    const [r1,r2]=await Promise.all([fetch(URL_ENC+"&t="+Date.now()),fetch(URL_OBS+"&t="+Date.now())]);
-    const [t1,t2]=await Promise.all([r1.text(),r2.text()]);
-    ITENS=parseCSV(t1).filter(i=>(i["Status"]||"").toUpperCase()!=="CONCLUÍDO");
-    OBS=parseCSV(t2);
-    popularSetores();render();
-  }catch(e){
-    document.getElementById("loading").textContent="Erro ao carregar. Verifique a conexão.";
+async function aposLogin(response){
+  idToken = response.credential;
+  try {
+    const payload = JSON.parse(atob(idToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    userEmail = payload.email;
+  } catch(e) { userEmail = '—'; }
+  document.getElementById('loginErro').style.display = 'none';
+  document.getElementById('loginLoading').style.display = '';
+  const r = await chamar({acao:'ler'});
+  document.getElementById('loginLoading').style.display = 'none';
+  if (r.ok) {
+    document.getElementById('loginTela').style.display = 'none';
+    document.getElementById('appConteudo').style.display = '';
+    document.getElementById('userEmail').textContent = userEmail;
+    aplicarDados(r);
+  } else if (r.erro === 'sem_acesso') {
+    mostrarErroLogin('A conta ' + userEmail + ' não tem acesso à planilha. Peça acesso ao administrador e tente novamente.');
+  } else if (r.erro === 'token_invalido' || r.erro === 'sem_token') {
+    mostrarErroLogin('Sessão inválida. Tente entrar novamente.');
+  } else {
+    mostrarErroLogin('Erro: ' + (r.erro || 'desconhecido'));
   }
 }
 
-function popularSetores(){
-  const sel=document.getElementById("fSetor");
-  const atuais=[...sel.options].map(o=>o.value);
-  SETORES.forEach(s=>{if(!atuais.includes(s)){const o=document.createElement("option");o.value=s;o.textContent=s;sel.appendChild(o);}});
+function mostrarErroLogin(msg){
+  const el = document.getElementById('loginErro');
+  el.textContent = msg;
+  el.style.display = '';
 }
 
-function filtrar(campo,val){
-  F[campo]=val;
-  if(campo==="status"){
-    document.querySelectorAll(".card").forEach(c=>c.classList.remove("sel"));
-    const m={todos:"card-todos","DENTRO DO PRAZO":"card-ok","EM ATRASO":"card-atr"};
+function sair(){
+  google.accounts.id.disableAutoSelect();
+  idToken = null;
+  userEmail = null;
+  location.reload();
+}
+
+async function chamar(payload){
+  payload.idToken = idToken;
+  try {
+    const r = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+    return await r.json();
+  } catch(e){
+    return {ok:false, erro: String(e)};
+  }
+}
+
+function aplicarDados(r){
+  ITENS = (r.encaminhamentos || []).filter(i => (i["Status"]||"").toUpperCase() !== "CONCLUÍDO");
+  OBS = r.observacoes || [];
+  popularSetores();
+  render();
+}
+
+// === DADOS ===
+async function carregarDados(){
+  if (!idToken) return;
+  document.getElementById("loading").style.display = "block";
+  document.getElementById("tab").style.display = "none";
+  document.getElementById("vazio").style.display = "none";
+  const r = await chamar({acao:'ler'});
+  if (!r.ok) {
+    document.getElementById("loading").textContent = "Erro: " + (r.erro || 'desconhecido');
+    if (r.erro === 'token_invalido') {
+      setTimeout(function(){ location.reload(); }, 1500);
+    }
+    return;
+  }
+  aplicarDados(r);
+  toast('Dados atualizados');
+}
+
+function popularSetores(){
+  const sel = document.getElementById("fSetor");
+  const atuais = [...sel.options].map(o => o.value);
+  SETORES.forEach(s => {
+    if (!atuais.includes(s)) {
+      const o = document.createElement("option");
+      o.value = s; o.textContent = s;
+      sel.appendChild(o);
+    }
+  });
+}
+
+function filtrar(campo, val){
+  F[campo] = val;
+  if (campo === "status") {
+    document.querySelectorAll(".card").forEach(c => c.classList.remove("sel"));
+    const m = {todos:"card-todos","DENTRO DO PRAZO":"card-ok","EM ATRASO":"card-atr"};
     document.getElementById(m[val]).classList.add("sel");
   }
   render();
 }
 
 function itensFiltrados(){
-  return ITENS.filter(i=>{
-    if(F.status!=="todos"&&i["Status"]!==F.status)return false;
-    if(F.setor!=="todos"&&i["Setor"]!==F.setor)return false;
-    if(F.origem!=="todas"&&i["Origem"]!==F.origem)return false;
+  return ITENS.filter(i => {
+    if (F.status !== "todos" && i["Status"] !== F.status) return false;
+    if (F.setor !== "todos" && i["Setor"] !== F.setor) return false;
+    if (F.origem !== "todas" && i["Origem"] !== F.origem) return false;
     return true;
   });
 }
 
-function parsePrazo(s){if(!s)return null;const[d,m,y]=s.split("/").map(Number);return new Date(y,m-1,d);}
+function parsePrazo(s){ if (!s) return null; const[d,m,y] = s.split("/").map(Number); return new Date(y, m-1, d); }
 function classePrazo(s){
-  if(!s)return"";
-  const p=parsePrazo(s),h=new Date();h.setHours(0,0,0,0);
-  const d=Math.ceil((p-h)/86400000);
-  if(d<0)return"atr";if(d<=3)return"venc";return"";
+  if (!s) return "";
+  const p = parsePrazo(s), h = new Date(); h.setHours(0,0,0,0);
+  const d = Math.ceil((p - h)/86400000);
+  if (d < 0) return "atr"; if (d <= 3) return "venc"; return "";
 }
 function origClass(o){
-  if(o==="Reunião Gerencial")return"orig-r1";
-  if(o==="Despacho com o Secretário")return"orig-r2";
-  return"orig-av";
+  if (o === "Reunião Gerencial") return "orig-r1";
+  if (o === "Despacho com o Secretário") return "orig-r2";
+  return "orig-av";
 }
 function proximoID(){
-  const nums=ITENS.filter(i=>i["ID"]&&i["ID"].startsWith("AV-")).map(i=>parseInt(i["ID"].split("-")[2]||0)).filter(n=>!isNaN(n));
-  return"AV-2025-"+String((nums.length?Math.max(...nums):0)+1).padStart(3,"0");
+  const nums = ITENS.filter(i => i["ID"] && i["ID"].startsWith("AV-"))
+    .map(i => parseInt(i["ID"].split("-")[2] || 0))
+    .filter(n => !isNaN(n));
+  const ano = new Date().getFullYear();
+  return "AV-" + ano + "-" + String((nums.length ? Math.max(...nums) : 0) + 1).padStart(3, "0");
 }
 
 function render(){
-  const hoje=new Date();hoje.setHours(0,0,0,0);
-  const tot=ITENS.length,ok=ITENS.filter(i=>i["Status"]==="DENTRO DO PRAZO").length,atr=ITENS.filter(i=>i["Status"]==="EM ATRASO").length;
-  document.getElementById("n-tot").textContent=tot;
-  document.getElementById("n-ok").textContent=ok;
-  document.getElementById("n-atr").textContent=atr;
-  const msgs=[];
-  if(atr)msgs.push(atr+" item(ns) em atraso");
-  const venc3=ITENS.filter(i=>{const p=i["Prazo Repactuado"]||i["Prazo Original"];if(!p||i["Status"]==="EM ATRASO")return false;return Math.ceil((parsePrazo(p)-hoje)/86400000)<=3;}).length;
-  if(venc3)msgs.push(venc3+" vence(m) em até 3 dias");
-  const semP=ITENS.filter(i=>!i["Prazo Original"]).length;
-  if(semP)msgs.push(semP+" sem prazo definido");
-  const abar=document.getElementById("abar");
-  if(msgs.length){abar.classList.remove("off");document.getElementById("atxt").textContent=msgs.join(" · ");}
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const tot = ITENS.length;
+  const ok = ITENS.filter(i => i["Status"] === "DENTRO DO PRAZO").length;
+  const atr = ITENS.filter(i => i["Status"] === "EM ATRASO").length;
+  document.getElementById("n-tot").textContent = tot;
+  document.getElementById("n-ok").textContent = ok;
+  document.getElementById("n-atr").textContent = atr;
+  const msgs = [];
+  if (atr) msgs.push(atr + " item(ns) em atraso");
+  const venc3 = ITENS.filter(i => {
+    const p = i["Prazo Repactuado"] || i["Prazo Original"];
+    if (!p || i["Status"] === "EM ATRASO") return false;
+    return Math.ceil((parsePrazo(p) - hoje)/86400000) <= 3;
+  }).length;
+  if (venc3) msgs.push(venc3 + " vence(m) em até 3 dias");
+  const semP = ITENS.filter(i => !i["Prazo Original"]).length;
+  if (semP) msgs.push(semP + " sem prazo definido");
+  const abar = document.getElementById("abar");
+  if (msgs.length) { abar.classList.remove("off"); document.getElementById("atxt").textContent = msgs.join(" · "); }
   else abar.classList.add("off");
-  const filtrados=itensFiltrados();
-  document.getElementById("contLabel").textContent=filtrados.length===ITENS.length?filtrados.length+" itens":filtrados.length+" de "+ITENS.length+" itens";
-  const tbody=document.getElementById("tbody"),vazio=document.getElementById("vazio"),tab=document.getElementById("tab");
-  document.getElementById("loading").style.display="none";
-  tbody.innerHTML="";
-  if(!filtrados.length){tab.style.display="none";vazio.style.display="block";return;}
-  tab.style.display="";vazio.style.display="none";
-  filtrados.forEach(item=>{
-    const tr=document.createElement("tr");
-    const prazoO=item["Prazo Original"],prazoR=item["Prazo Repactuado"];
-    let prazoHtml="";
-    if(prazoR&&prazoR.trim()){prazoHtml='<div class="prazo-orig">'+prazoO+'</div><div class="prazo-rep">'+prazoR+'</div>';}
-    else if(!prazoO||!prazoO.trim()){prazoHtml='<span class="prazo-s" style="color:#64748B">A definir</span>';}
-    else{const c=classePrazo(prazoO);prazoHtml='<span class="prazo-s '+c+'">'+prazoO+'</span>';}
-    const bAdge=item["Status"]==="EM ATRASO"?'<span class="badge badge-atr">EM ATRASO</span>':'<span class="badge badge-ok">DENTRO DO PRAZO</span>';
-    const nObs=OBS.filter(o=>o["ID do Item"]===item["ID"]).length;
-    const linkPasta=item["Link da Pasta"]||"";
-    tr.innerHTML='<td class="td-n">'+(item["Nº"]||"—")+'</td><td class="td-desc">'+(item["Encaminhamento"]||"—")+'</td><td class="td-setor">'+(item["Setor"]||"—")+'</td><td class="td-resp">'+(item["Responsável"]||"—")+'</td><td class="td-prazo">'+prazoHtml+'</td><td class="td-sit">'+bAdge+'</td><td class="td-orig"><span class="orig-badge '+origClass(item["Origem"])+'">'+(item["Origem"]||"—")+'</span></td><td class="td-data">'+(item["Data"]||"—")+'</td><td class="td-acoes"><button class="btn-icon" onclick=\'abrirObs('+JSON.stringify(item["ID"])+')\'>💬'+(nObs>0?' '+nObs:"")+'</button><button class="btn-icon" onclick=\'abrirAnexos('+JSON.stringify(item["ID"])+','+JSON.stringify(linkPasta)+')\'>📎</button></td>';
+  const filtrados = itensFiltrados();
+  document.getElementById("contLabel").textContent = filtrados.length === ITENS.length
+    ? filtrados.length + " itens"
+    : filtrados.length + " de " + ITENS.length + " itens";
+  const tbody = document.getElementById("tbody"), vazio = document.getElementById("vazio"), tab = document.getElementById("tab");
+  document.getElementById("loading").style.display = "none";
+  tbody.innerHTML = "";
+  if (!filtrados.length) { tab.style.display = "none"; vazio.style.display = "block"; return; }
+  tab.style.display = ""; vazio.style.display = "none";
+  filtrados.forEach(item => {
+    const tr = document.createElement("tr");
+    const prazoO = item["Prazo Original"], prazoR = item["Prazo Repactuado"];
+    let prazoHtml = "";
+    if (prazoR && prazoR.trim()) prazoHtml = '<div class="prazo-orig">'+prazoO+'</div><div class="prazo-rep">'+prazoR+'</div>';
+    else if (!prazoO || !prazoO.trim()) prazoHtml = '<span class="prazo-s" style="color:#64748B">A definir</span>';
+    else { const c = classePrazo(prazoO); prazoHtml = '<span class="prazo-s '+c+'">'+prazoO+'</span>'; }
+    const bAdge = item["Status"] === "EM ATRASO"
+      ? '<span class="badge badge-atr">EM ATRASO</span>'
+      : '<span class="badge badge-ok">DENTRO DO PRAZO</span>';
+    const nObs = OBS.filter(o => o["ID do Item"] === item["ID"]).length;
+    const linkPasta = item["Link da Pasta"] || "";
+    tr.innerHTML = '<td class="td-n">'+(item["Nº"]||"—")+'</td>'
+      + '<td class="td-desc">'+(item["Encaminhamento"]||"—")+'</td>'
+      + '<td class="td-setor">'+(item["Setor"]||"—")+'</td>'
+      + '<td class="td-resp">'+(item["Responsável"]||"—")+'</td>'
+      + '<td class="td-prazo">'+prazoHtml+'</td>'
+      + '<td class="td-sit">'+bAdge+'</td>'
+      + '<td class="td-orig"><span class="orig-badge '+origClass(item["Origem"])+'">'+(item["Origem"]||"—")+'</span></td>'
+      + '<td class="td-data">'+(item["Data"]||"—")+'</td>'
+      + '<td class="td-acoes">'
+        + '<button class="btn-icon" onclick=\'abrirObs('+JSON.stringify(item["ID"])+')\'>💬'+(nObs>0?' '+nObs:"")+'</button>'
+        + '<button class="btn-icon" onclick=\'abrirAnexos('+JSON.stringify(item["ID"])+','+JSON.stringify(linkPasta)+')\'>📎</button>'
+      + '</td>';
     tbody.appendChild(tr);
   });
 }
 
+// === OBSERVAÇÕES ===
 function abrirObs(id){
-  document.getElementById("modalTitulo").textContent="Observações — "+id;
-  const lista=OBS.filter(o=>o["ID do Item"]===id);
-  let html='<div class="modal-section"><div class="modal-section-title">Histórico</div>';
-  if(!lista.length)html+='<div style="font-size:13px;color:#64748B;font-style:italic;padding:8px 0">Nenhuma observação registrada.</div>';
-  lista.forEach(o=>{html+='<div class="obs-item"><div class="obs-data">'+o["Data"]+'</div><div class="obs-txt">'+o["Observação"]+'</div></div>';});
-  html+='</div><div class="modal-section"><div class="modal-section-title">Nova observação</div><div class="obs-form"><textarea id="novaObs" placeholder="Digite a observação..."></textarea><button class="btn-confirmar" onclick="gerarLinhaObs(\''+id+'\')">Gerar ↗</button></div><p style="font-size:11.5px;color:#64748B;margin-top:8px">Cole na aba OBSERVAÇÕES da planilha.</p></div>';
-  document.getElementById("modalCorpo").innerHTML=html;
+  document.getElementById("modalTitulo").textContent = "Observações — " + id;
+  const lista = OBS.filter(o => o["ID do Item"] === id);
+  let html = '<div class="modal-section"><div class="modal-section-title">Histórico</div>';
+  if (!lista.length) html += '<div style="font-size:13px;color:#64748B;font-style:italic;padding:8px 0">Nenhuma observação registrada.</div>';
+  lista.forEach(o => { html += '<div class="obs-item"><div class="obs-data">'+o["Data"]+'</div><div class="obs-txt">'+o["Observação"]+'</div></div>'; });
+  html += '</div><div class="modal-section"><div class="modal-section-title">Nova observação</div>'
+       + '<div class="obs-form"><textarea id="novaObs" placeholder="Digite a observação..."></textarea>'
+       + '<button class="btn-confirmar" onclick="salvarObs(\''+id+'\')" id="btnSalvarObs">Salvar</button></div></div>';
+  document.getElementById("modalCorpo").innerHTML = html;
   abrirModal();
 }
 
-function gerarLinhaObs(id){
-  const txt=document.getElementById("novaObs").value.trim();
-  if(!txt)return;
-  const hoje=new Date().toLocaleDateString("pt-BR");
-  const linha=id+"\t"+hoje+"\t"+txt;
-  navigator.clipboard.writeText(linha).then(()=>{alert("Linha copiada!\n\nCole na aba OBSERVAÇÕES da planilha.");fecharModal();}).catch(()=>{alert("Cole esta linha na aba OBSERVAÇÕES:\n\n"+linha);});
+async function salvarObs(id){
+  const txt = document.getElementById("novaObs").value.trim();
+  if (!txt) return;
+  const btn = document.getElementById("btnSalvarObs");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const r = await chamar({acao:'nova_observacao', idItem:id, data:hoje, observacao:txt});
+  if (r.ok) {
+    toast('Observação salva');
+    fecharModal();
+    await carregarDados();
+  } else {
+    btn.disabled = false; btn.textContent = "Salvar";
+    toast('Erro: ' + (r.erro || 'falha'), true);
+  }
 }
 
-function abrirAnexos(id,pasta){
-  document.getElementById("modalTitulo").textContent="Anexos — "+id;
-  let html='<div class="modal-section"><div class="modal-section-title">Pasta no Drive</div>';
-  if(pasta&&pasta.startsWith("http")){html+='<a class="pasta-link" href="'+pasta+'" target="_blank">📁 Abrir pasta no Drive</a></div><div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div><div class="upload-area" onclick="window.open(\''+pasta+'\',\'_blank\')">📤 Clique para abrir a pasta e fazer upload ou excluir arquivos no Drive</div>';}
-  else{html+='<div class="sem-pasta">Pasta não configurada. Adicione o link na planilha (coluna K).</div></div><div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div><div class="upload-area" style="opacity:.5;cursor:default">Configure a pasta primeiro</div>';}
-  html+='</div>';
-  document.getElementById("modalCorpo").innerHTML=html;
+// === ANEXOS ===
+function abrirAnexos(id, pasta){
+  document.getElementById("modalTitulo").textContent = "Anexos — " + id;
+  let html = '<div class="modal-section"><div class="modal-section-title">Pasta no Drive</div>';
+  if (pasta && pasta.startsWith("http")) {
+    html += '<a class="pasta-link" href="'+pasta+'" target="_blank">📁 Abrir pasta no Drive</a></div>'
+         + '<div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div>'
+         + '<div class="upload-area" onclick="window.open(\''+pasta+'\',\'_blank\')">📤 Clique para abrir a pasta e fazer upload ou excluir arquivos no Drive</div>';
+  } else {
+    html += '<div class="sem-pasta">Pasta não configurada. Adicione o link na planilha (coluna K).</div></div>'
+         + '<div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div>'
+         + '<div class="upload-area" style="opacity:.5;cursor:default">Configure a pasta primeiro</div>';
+  }
+  html += '</div>';
+  document.getElementById("modalCorpo").innerHTML = html;
   abrirModal();
 }
 
+// === NOVA DEMANDA ===
 function abrirNovaDemanda(){
-  const novoID=proximoID();
-  const setoresOpts=SETORES.map(s=>'<option value="'+s+'">'+s+'</option>').join("");
-  document.getElementById("modalTitulo").textContent="Nova demanda avulsa";
-  document.getElementById("modalCorpo").innerHTML='<div class="modal-section"><div class="form-grid full"><div class="form-field"><label>ID gerado automaticamente</label><input type="text" value="'+novoID+'" readonly style="background:#F8FAFC;color:#64748B;font-family:monospace"></div></div><div class="form-grid full"><div class="form-field"><label>Encaminhamento</label><textarea id="f-desc" placeholder="Descreva a demanda com verbo de ação..."></textarea></div></div><div class="form-grid"><div class="form-field"><label>Setor</label><select id="f-setor"><option value="">Selecione...</option>'+setoresOpts+'</select></div><div class="form-field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome do responsável"></div></div><div class="form-grid"><div class="form-field"><label>Prazo</label><input type="date" id="f-prazo"></div><div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">Dentro do Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div></div></div><div class="form-acoes"><button class="btn-cancelar" onclick="fecharModal()">Cancelar</button><button class="btn-confirmar" onclick="gerarLinhaDemanda(\''+novoID+'\')">Gerar linha ↗</button></div>';
+  const novoID = proximoID();
+  const setoresOpts = SETORES.map(s => '<option value="'+s+'">'+s+'</option>').join("");
+  document.getElementById("modalTitulo").textContent = "Nova demanda avulsa";
+  document.getElementById("modalCorpo").innerHTML =
+      '<div class="modal-section">'
+    + '<div class="form-grid full"><div class="form-field"><label>ID gerado automaticamente</label>'
+    + '<input type="text" id="f-id" value="'+novoID+'" readonly style="background:#F8FAFC;color:#64748B;font-family:monospace"></div></div>'
+    + '<div class="form-grid full"><div class="form-field"><label>Encaminhamento</label>'
+    + '<textarea id="f-desc" placeholder="Descreva a demanda com verbo de ação..."></textarea></div></div>'
+    + '<div class="form-grid">'
+      + '<div class="form-field"><label>Setor</label><select id="f-setor"><option value="">Selecione...</option>'+setoresOpts+'</select></div>'
+      + '<div class="form-field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome do responsável"></div>'
+    + '</div>'
+    + '<div class="form-grid">'
+      + '<div class="form-field"><label>Prazo</label><input type="date" id="f-prazo"></div>'
+      + '<div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">Dentro do Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div>'
+    + '</div></div>'
+    + '<div class="form-acoes">'
+      + '<button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>'
+      + '<button class="btn-confirmar" id="btnSalvarDem" onclick="salvarDemanda()">Salvar demanda</button>'
+    + '</div>';
   abrirModal();
 }
 
-function gerarLinhaDemanda(id){
-  const desc=document.getElementById("f-desc").value.trim();
-  const setor=document.getElementById("f-setor").value;
-  const resp=document.getElementById("f-resp").value.trim();
-  const prazoRaw=document.getElementById("f-prazo").value;
-  const status=document.getElementById("f-status").value;
-  if(!desc){alert("Preencha o encaminhamento.");return;}
-  if(!setor){alert("Selecione o setor.");return;}
-  const prazo=prazoRaw?prazoRaw.split("-").reverse().join("/"):"";
-  const hoje=new Date().toLocaleDateString("pt-BR");
-  const n=String(ITENS.filter(i=>i["Origem"]==="Avulso").length+1).padStart(2,"0");
-  const linha=id+"\t"+n+"\t"+desc+"\t"+setor+"\t"+(resp||"A definir")+"\t"+prazo+"\t\t"+status+"\tAvulso\t"+hoje+"\t";
-  window._linhaGerada=linha;
-  document.getElementById("modalCorpo").innerHTML='<div class="modal-section"><div class="modal-section-title">Linha gerada — cole na planilha</div><p style="font-size:12.5px;color:#64748B;margin-bottom:10px">Cole na próxima linha vazia da aba ENCAMINHAMENTOS. Depois clique em Atualizar no painel.</p><div class="linha-gerada">'+linha+'</div><div class="form-acoes"><button class="btn-cancelar" onclick="fecharModal()">Fechar</button><button class="btn-confirmar" onclick="copiarLinha()">📋 Copiar linha</button></div></div>';
+async function salvarDemanda(){
+  const id = document.getElementById("f-id").value;
+  const desc = document.getElementById("f-desc").value.trim();
+  const setor = document.getElementById("f-setor").value;
+  const resp = document.getElementById("f-resp").value.trim();
+  const prazoRaw = document.getElementById("f-prazo").value;
+  const status = document.getElementById("f-status").value;
+  if (!desc) { alert("Preencha o encaminhamento."); return; }
+  if (!setor) { alert("Selecione o setor."); return; }
+  const prazo = prazoRaw ? prazoRaw.split("-").reverse().join("/") : "";
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const n = String(ITENS.filter(i => i["Origem"] === "Avulso").length + 1).padStart(2, "0");
+  const btn = document.getElementById("btnSalvarDem");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const r = await chamar({
+    acao: 'nova_demanda',
+    id: id, numero: n, encaminhamento: desc, setor: setor,
+    responsavel: resp || 'A definir',
+    prazoOriginal: prazo, prazoRepactuado: '',
+    status: status, origem: 'Avulso', data: hoje, linkPasta: ''
+  });
+  if (r.ok) {
+    toast('Demanda salva');
+    fecharModal();
+    await carregarDados();
+  } else {
+    btn.disabled = false; btn.textContent = "Salvar demanda";
+    toast('Erro: ' + (r.erro || 'falha'), true);
+  }
 }
 
-function copiarLinha(){navigator.clipboard.writeText(window._linhaGerada||"").then(()=>{alert("Linha copiada!");}).catch(()=>{alert("Copie manualmente a linha exibida.");});}
-function abrirModal(){document.getElementById("modalBg").classList.remove("off");}
-function fecharModal(){document.getElementById("modalBg").classList.add("off");}
-document.getElementById("modalBg").addEventListener("click",function(e){if(e.target===this)fecharModal();});
-document.getElementById("dt").textContent=new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})+" · "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-carregarDados();
+// === MODAL / TOAST ===
+function abrirModal(){ document.getElementById("modalBg").classList.remove("off"); }
+function fecharModal(){ document.getElementById("modalBg").classList.add("off"); }
+document.getElementById("modalBg").addEventListener("click", function(e){ if (e.target === this) fecharModal(); });
+
+let toastTimer = null;
+function toast(msg, err){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.className = "toast" + (err ? " err" : ""); }, 2500);
+}
+
+document.getElementById("dt").textContent = new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})
+  + " · " + new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 </script>
 </body>
 </html>
