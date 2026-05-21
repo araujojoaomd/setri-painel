@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SETRI — Painel de Pendências</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#F8FAFC;color:#1A2740;min-height:100vh}
+.pnl-header{background:#1F3864;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(31,56,100,.18)}
+.pnl-header-inner{display:flex;align-items:stretch;max-width:1500px;margin:0 auto}
+.pnl-header-brand{padding:14px 28px;flex:1}
+.pnl-header-brand .supra{font-size:10px;letter-spacing:2px;color:#7BAFD4;text-transform:uppercase;margin-bottom:2px}
+.pnl-header-brand .titulo{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px}
+.pnl-header-right{background:#2E5FA3;padding:14px 28px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px}
+.pnl-header-right .lbl{font-size:10px;color:#AACCE8;letter-spacing:1.5px;text-transform:uppercase}
+.pnl-header-right .dt{font-size:13px;font-weight:600;color:#fff;font-family:'DM Mono',monospace}
+.abar{background:#FFF7ED;border-bottom:2px solid #FED7AA;padding:10px 28px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:12.5px;font-weight:500;color:#92400E}
+.abar.off{display:none}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 28px;background:#EEF4FB;border-bottom:1px solid #E2EAF4;max-width:1500px;margin:0 auto;width:100%}
+.card{background:#fff;border:0.5px solid #E2EAF4;border-radius:12px;padding:12px 16px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
+.card:hover{border-color:#2E5FA3;transform:translateY(-1px);box-shadow:0 4px 12px rgba(31,56,100,.08)}
+.card.sel{border:1.5px solid #2E5FA3;box-shadow:0 4px 12px rgba(31,56,100,.1)}
+.card .num{font-size:24px;font-weight:700;line-height:1}
+.card .leg{font-size:11px;color:#64748B;font-weight:500;margin-top:2px}
+.c-tot{color:#1F3864}.c-ok{color:#16A34A}.c-atr{color:#DC2626}
+.filtros{max-width:1500px;margin:0 auto;padding:12px 28px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid #E2EAF4;background:#fff}
+.filtros select{font-size:12px;padding:6px 12px;border-radius:20px;border:1px solid #E2EAF4;background:#fff;font-family:'DM Sans',sans-serif;color:#1A2740;cursor:pointer}
+.sep{flex:1}
+.cont-label{font-size:12px;color:#64748B}
+.btn-atualizar{font-size:12px;padding:6px 14px;border-radius:20px;border:1px solid #E2EAF4;background:#fff;cursor:pointer;font-family:'DM Sans',sans-serif;color:#1A2740;transition:all .15s}
+.btn-novo{background:#1F3864;color:#fff;border:none;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s}
+.tabela-wrap{max-width:1500px;margin:0 auto;padding:16px 28px 40px}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #E2EAF4;box-shadow:0 2px 12px rgba(31,56,100,.06);table-layout:fixed}
+thead tr{background:#1F3864}
+thead th{padding:11px 14px;text-align:left;font-size:10px;font-weight:600;color:#AACCE8;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;overflow:hidden}
+tbody tr{border-bottom:1px solid #E2EAF4;transition:background .1s}
+tbody tr:hover{background:#EEF4FB}
+td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
+.td-n{width:46px;text-align:center;font-family:'DM Mono',monospace;font-size:11px;color:#64748B}
+.td-desc{font-weight:500;line-height:1.4}
+.td-setor{width:70px;font-family:'DM Mono',monospace;font-size:11px;font-weight:600;color:#2E5FA3}
+.td-resp{width:120px;font-size:12px}
+.td-prazo{width:110px}
+.td-sit{width:120px}
+.td-orig{width:145px}
+.td-data{width:90px;font-family:'DM Mono',monospace;font-size:11px;color:#64748B}
+.td-acoes{width:88px;text-align:center}
+.prazo-orig{font-size:10.5px;color:#64748B;text-decoration:line-through;font-family:'DM Mono',monospace}
+.prazo-rep{font-size:11.5px;font-weight:600;color:#DC2626;font-family:'DM Mono',monospace}
+.prazo-rep::before{content:"↳ "}
+.prazo-s{font-family:'DM Mono',monospace;font-size:11.5px}
+.prazo-s.venc{color:#D97706;font-weight:600}
+.prazo-s.atr{color:#DC2626;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.badge::before{content:"●";font-size:6px}
+.badge-ok{background:#F0FDF4;color:#15803D}
+.badge-atr{background:#FEF2F2;color:#B91C1C}
+.orig-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:138px}
+.orig-r1{background:#EEF4FB;color:#1F3864}
+.orig-r2{background:#FEF3C7;color:#92400E}
+.orig-av{background:#F3E8FF;color:#6B21A8}
+.btn-icon{background:none;border:1px solid #E2EAF4;border-radius:8px;padding:4px 7px;cursor:pointer;font-size:12px;color:#64748B;transition:all .15s;margin:0 2px;display:inline-flex;align-items:center;gap:3px;font-family:'DM Sans',sans-serif}
+.vazio{text-align:center;padding:60px;color:#64748B;font-size:13px;display:none}
+.loading{text-align:center;padding:60px;color:#64748B;font-size:13px}
+.rodape{text-align:center;padding:16px;font-size:11px;color:#64748B;border-top:1px solid #E2EAF4;background:#fff}
+.modal-bg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.45);display:flex;align-items:flex-start;justify-content:center;padding-top:60px;z-index:500}
+.modal-bg.off{display:none}
+.modal{background:#fff;border-radius:16px;border:1px solid #E2EAF4;width:100%;max-width:580px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,.15);max-height:80vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-title{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:#64748B;line-height:1;padding:0 4px}
+.modal-section{margin-bottom:16px}
+.modal-section-title{font-size:11px;font-weight:600;color:#64748B;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.obs-item{padding:9px 12px;background:#F8FAFC;border-radius:8px;margin-bottom:6px;border-left:3px solid #2E5FA3}
+.obs-data{font-size:10.5px;color:#64748B;font-family:'DM Mono',monospace;margin-bottom:3px}
+.obs-txt{font-size:13px}
+.obs-form{display:flex;gap:8px;margin-top:6px}
+.obs-form textarea{flex:1;font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid #E2EAF4;font-family:'DM Sans',sans-serif;resize:none;height:60px}
+.pasta-link{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#2E5FA3;text-decoration:none;padding:6px 12px;border:1px solid #E2EAF4;border-radius:8px;margin-bottom:12px;font-weight:500}
+.sem-pasta{font-size:12.5px;color:#64748B;font-style:italic;padding:8px 0}
+.upload-area{border:1.5px dashed #CBD5E1;border-radius:10px;padding:20px;text-align:center;cursor:pointer;font-size:13px;color:#64748B;transition:all .15s;margin-top:8px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.form-grid.full{grid-template-columns:1fr}
+.form-field{display:flex;flex-direction:column;gap:5px}
+.form-field label{font-size:11px;font-weight:600;color:#64748B;letter-spacing:.5px;text-transform:uppercase}
+.form-field input,.form-field select,.form-field textarea{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid #E2EAF4;font-family:'DM Sans',sans-serif;color:#1A2740;background:#fff}
+.form-field textarea{resize:none;height:70px}
+.form-acoes{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.btn-cancelar{background:none;border:1px solid #E2EAF4;border-radius:8px;padding:8px 18px;font-size:13px;cursor:pointer;color:#64748B;font-family:'DM Sans',sans-serif}
+.btn-confirmar{background:#1F3864;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif}
+.linha-gerada{background:#F8FAFC;border-radius:8px;padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;word-break:break-all;margin-bottom:10px;border-left:3px solid #2E5FA3;line-height:1.6}
+@media(max-width:768px){
+  .pnl-header-inner{flex-direction:column}
+  .cards{padding:12px 16px;grid-template-columns:repeat(3,1fr)}
+  .filtros{padding:10px 16px}
+  .tabela-wrap{padding:12px 16px 32px}
+  td{padding:9px 10px;font-size:12px}
+  .td-orig,.td-data{display:none}
+}
+</style>
+</head>
+<body>
+<div class="pnl-header">
+  <div class="pnl-header-inner">
+    <div class="pnl-header-brand">
+      <div class="supra">Prefeitura do Recife · SEFIN · SETRI</div>
+      <div class="titulo">Painel de Pendências</div>
+    </div>
+    <div class="pnl-header-right">
+      <div class="lbl">Atualizado em</div>
+      <div class="dt" id="dt">—</div>
+    </div>
+  </div>
+</div>
+<div class="abar off" id="abar">⚠ <span id="atxt"></span></div>
+<div style="background:#EEF4FB;border-bottom:1px solid #E2EAF4">
+  <div class="cards">
+    <div class="card sel" id="card-todos" onclick="filtrar('status','todos')">
+      <div><div class="num c-tot" id="n-tot">—</div><div class="leg">Total ativo</div></div>
+    </div>
+    <div class="card" id="card-ok" onclick="filtrar('status','DENTRO DO PRAZO')">
+      <div><div class="num c-ok" id="n-ok">—</div><div class="leg">Dentro do prazo</div></div>
+    </div>
+    <div class="card" id="card-atr" onclick="filtrar('status','EM ATRASO')">
+      <div><div class="num c-atr" id="n-atr">—</div><div class="leg">Em atraso</div></div>
+    </div>
+  </div>
+</div>
+<div class="filtros">
+  <select id="fSetor" onchange="filtrar('setor',this.value)"><option value="todos">Todos os setores</option></select>
+  <select id="fOrigem" onchange="filtrar('origem',this.value)">
+    <option value="todas">Toda origem</option>
+    <option value="Reunião Gerencial">Reunião Gerencial</option>
+    <option value="Despacho com o Secretário">Despacho com o Secretário</option>
+    <option value="Avulso">Avulso</option>
+  </select>
+  <div class="sep"></div>
+  <span class="cont-label" id="contLabel"></span>
+  <button class="btn-atualizar" onclick="carregarDados()">↻ Atualizar</button>
+  <button class="btn-novo" onclick="abrirNovaDemanda()">+ Nova demanda</button>
+</div>
+<div class="tabela-wrap">
+  <div class="loading" id="loading">Carregando dados da planilha...</div>
+  <table id="tab" style="display:none">
+    <thead><tr>
+      <th class="td-n">Nº</th>
+      <th class="td-desc">Encaminhamento</th>
+      <th class="td-setor">Setor</th>
+      <th class="td-resp">Responsável</th>
+      <th class="td-prazo">Prazo</th>
+      <th class="td-sit">Situação</th>
+      <th class="td-orig">Origem</th>
+      <th class="td-data">Data</th>
+      <th class="td-acoes"></th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="vazio" id="vazio">Nenhum item encontrado.</div>
+</div>
+<div class="rodape">Uso interno — Secretaria Executiva de Tributação / SEFIN / Prefeitura do Recife</div>
+<div class="modal-bg off" id="modalBg">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitulo">—</span>
+      <button class="modal-close" onclick="fecharModal()">×</button>
+    </div>
+    <div id="modalCorpo"></div>
+  </div>
+</div>
+<script>
+const URL_ENC="https://docs.google.com/spreadsheets/d/e/2PACX-1vTsEOahaYQ9CRw1TtV7ewiIqWedwaVVWsuor3W7NiDDX9yNN0X1bqGyeKq6sI-7RPp7LWpbI60eLtYX/pub?gid=0&single=true&output=csv";
+const URL_OBS="https://docs.google.com/spreadsheets/d/e/2PACX-1vTsEOahaYQ9CRw1TtV7ewiIqWedwaVVWsuor3W7NiDDX9yNN0X1bqGyeKq6sI-7RPp7LWpbI60eLtYX/pub?gid=1999846350&single=true&output=csv";
+const SETORES=["GGAT","GMAT","GTI","GAC","GTM","GCR","SETRE","EMPREL","Outros"];
+let ITENS=[],OBS=[],F={status:"todos",setor:"todos",origem:"todas"};
+
+function parseCSV(txt){
+  const linhas=txt.trim().split("\n");
+  const headers=linhas[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
+  return linhas.slice(1).map(linha=>{
+    const cols=[];let cur="",inQ=false;
+    for(let c of linha){
+      if(c==='"'){inQ=!inQ;continue;}
+      if(c===','&&!inQ){cols.push(cur.trim());cur="";continue;}
+      cur+=c;
+    }
+    cols.push(cur.trim());
+    const obj={};headers.forEach((h,i)=>obj[h]=(cols[i]||"").replace(/^"|"$/g,""));
+    return obj;
+  }).filter(r=>r[headers[0]]);
+}
+
+async function carregarDados(){
+  document.getElementById("loading").style.display="block";
+  document.getElementById("tab").style.display="none";
+  document.getElementById("vazio").style.display="none";
+  try{
+    const [r1,r2]=await Promise.all([fetch(URL_ENC+"&t="+Date.now()),fetch(URL_OBS+"&t="+Date.now())]);
+    const [t1,t2]=await Promise.all([r1.text(),r2.text()]);
+    ITENS=parseCSV(t1).filter(i=>(i["Status"]||"").toUpperCase()!=="CONCLUÍDO");
+    OBS=parseCSV(t2);
+    popularSetores();render();
+  }catch(e){
+    document.getElementById("loading").textContent="Erro ao carregar. Verifique a conexão.";
+  }
+}
+
+function popularSetores(){
+  const sel=document.getElementById("fSetor");
+  const atuais=[...sel.options].map(o=>o.value);
+  SETORES.forEach(s=>{if(!atuais.includes(s)){const o=document.createElement("option");o.value=s;o.textContent=s;sel.appendChild(o);}});
+}
+
+function filtrar(campo,val){
+  F[campo]=val;
+  if(campo==="status"){
+    document.querySelectorAll(".card").forEach(c=>c.classList.remove("sel"));
+    const m={todos:"card-todos","DENTRO DO PRAZO":"card-ok","EM ATRASO":"card-atr"};
+    document.getElementById(m[val]).classList.add("sel");
+  }
+  render();
+}
+
+function itensFiltrados(){
+  return ITENS.filter(i=>{
+    if(F.status!=="todos"&&i["Status"]!==F.status)return false;
+    if(F.setor!=="todos"&&i["Setor"]!==F.setor)return false;
+    if(F.origem!=="todas"&&i["Origem"]!==F.origem)return false;
+    return true;
+  });
+}
+
+function parsePrazo(s){if(!s)return null;const[d,m,y]=s.split("/").map(Number);return new Date(y,m-1,d);}
+function classePrazo(s){
+  if(!s)return"";
+  const p=parsePrazo(s),h=new Date();h.setHours(0,0,0,0);
+  const d=Math.ceil((p-h)/86400000);
+  if(d<0)return"atr";if(d<=3)return"venc";return"";
+}
+function origClass(o){
+  if(o==="Reunião Gerencial")return"orig-r1";
+  if(o==="Despacho com o Secretário")return"orig-r2";
+  return"orig-av";
+}
+function proximoID(){
+  const nums=ITENS.filter(i=>i["ID"]&&i["ID"].startsWith("AV-")).map(i=>parseInt(i["ID"].split("-")[2]||0)).filter(n=>!isNaN(n));
+  return"AV-2025-"+String((nums.length?Math.max(...nums):0)+1).padStart(3,"0");
+}
+
+function render(){
+  const hoje=new Date();hoje.setHours(0,0,0,0);
+  const tot=ITENS.length,ok=ITENS.filter(i=>i["Status"]==="DENTRO DO PRAZO").length,atr=ITENS.filter(i=>i["Status"]==="EM ATRASO").length;
+  document.getElementById("n-tot").textContent=tot;
+  document.getElementById("n-ok").textContent=ok;
+  document.getElementById("n-atr").textContent=atr;
+  const msgs=[];
+  if(atr)msgs.push(atr+" item(ns) em atraso");
+  const venc3=ITENS.filter(i=>{const p=i["Prazo Repactuado"]||i["Prazo Original"];if(!p||i["Status"]==="EM ATRASO")return false;return Math.ceil((parsePrazo(p)-hoje)/86400000)<=3;}).length;
+  if(venc3)msgs.push(venc3+" vence(m) em até 3 dias");
+  const semP=ITENS.filter(i=>!i["Prazo Original"]).length;
+  if(semP)msgs.push(semP+" sem prazo definido");
+  const abar=document.getElementById("abar");
+  if(msgs.length){abar.classList.remove("off");document.getElementById("atxt").textContent=msgs.join(" · ");}
+  else abar.classList.add("off");
+  const filtrados=itensFiltrados();
+  document.getElementById("contLabel").textContent=filtrados.length===ITENS.length?filtrados.length+" itens":filtrados.length+" de "+ITENS.length+" itens";
+  const tbody=document.getElementById("tbody"),vazio=document.getElementById("vazio"),tab=document.getElementById("tab");
+  document.getElementById("loading").style.display="none";
+  tbody.innerHTML="";
+  if(!filtrados.length){tab.style.display="none";vazio.style.display="block";return;}
+  tab.style.display="";vazio.style.display="none";
+  filtrados.forEach(item=>{
+    const tr=document.createElement("tr");
+    const prazoO=item["Prazo Original"],prazoR=item["Prazo Repactuado"];
+    let prazoHtml="";
+    if(prazoR&&prazoR.trim()){prazoHtml='<div class="prazo-orig">'+prazoO+'</div><div class="prazo-rep">'+prazoR+'</div>';}
+    else if(!prazoO||!prazoO.trim()){prazoHtml='<span class="prazo-s" style="color:#64748B">A definir</span>';}
+    else{const c=classePrazo(prazoO);prazoHtml='<span class="prazo-s '+c+'">'+prazoO+'</span>';}
+    const bAdge=item["Status"]==="EM ATRASO"?'<span class="badge badge-atr">EM ATRASO</span>':'<span class="badge badge-ok">DENTRO DO PRAZO</span>';
+    const nObs=OBS.filter(o=>o["ID do Item"]===item["ID"]).length;
+    const linkPasta=item["Link da Pasta"]||"";
+    tr.innerHTML='<td class="td-n">'+(item["Nº"]||"—")+'</td><td class="td-desc">'+(item["Encaminhamento"]||"—")+'</td><td class="td-setor">'+(item["Setor"]||"—")+'</td><td class="td-resp">'+(item["Responsável"]||"—")+'</td><td class="td-prazo">'+prazoHtml+'</td><td class="td-sit">'+bAdge+'</td><td class="td-orig"><span class="orig-badge '+origClass(item["Origem"])+'">'+(item["Origem"]||"—")+'</span></td><td class="td-data">'+(item["Data"]||"—")+'</td><td class="td-acoes"><button class="btn-icon" onclick=\'abrirObs('+JSON.stringify(item["ID"])+')\'>💬'+(nObs>0?' '+nObs:"")+'</button><button class="btn-icon" onclick=\'abrirAnexos('+JSON.stringify(item["ID"])+','+JSON.stringify(linkPasta)+')\'>📎</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function abrirObs(id){
+  document.getElementById("modalTitulo").textContent="Observações — "+id;
+  const lista=OBS.filter(o=>o["ID do Item"]===id);
+  let html='<div class="modal-section"><div class="modal-section-title">Histórico</div>';
+  if(!lista.length)html+='<div style="font-size:13px;color:#64748B;font-style:italic;padding:8px 0">Nenhuma observação registrada.</div>';
+  lista.forEach(o=>{html+='<div class="obs-item"><div class="obs-data">'+o["Data"]+'</div><div class="obs-txt">'+o["Observação"]+'</div></div>';});
+  html+='</div><div class="modal-section"><div class="modal-section-title">Nova observação</div><div class="obs-form"><textarea id="novaObs" placeholder="Digite a observação..."></textarea><button class="btn-confirmar" onclick="gerarLinhaObs(\''+id+'\')">Gerar ↗</button></div><p style="font-size:11.5px;color:#64748B;margin-top:8px">Cole na aba OBSERVAÇÕES da planilha.</p></div>';
+  document.getElementById("modalCorpo").innerHTML=html;
+  abrirModal();
+}
+
+function gerarLinhaObs(id){
+  const txt=document.getElementById("novaObs").value.trim();
+  if(!txt)return;
+  const hoje=new Date().toLocaleDateString("pt-BR");
+  const linha=id+"\t"+hoje+"\t"+txt;
+  navigator.clipboard.writeText(linha).then(()=>{alert("Linha copiada!\n\nCole na aba OBSERVAÇÕES da planilha.");fecharModal();}).catch(()=>{alert("Cole esta linha na aba OBSERVAÇÕES:\n\n"+linha);});
+}
+
+function abrirAnexos(id,pasta){
+  document.getElementById("modalTitulo").textContent="Anexos — "+id;
+  let html='<div class="modal-section"><div class="modal-section-title">Pasta no Drive</div>';
+  if(pasta&&pasta.startsWith("http")){html+='<a class="pasta-link" href="'+pasta+'" target="_blank">📁 Abrir pasta no Drive</a></div><div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div><div class="upload-area" onclick="window.open(\''+pasta+'\',\'_blank\')">📤 Clique para abrir a pasta e fazer upload ou excluir arquivos no Drive</div>';}
+  else{html+='<div class="sem-pasta">Pasta não configurada. Adicione o link na planilha (coluna K).</div></div><div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div><div class="upload-area" style="opacity:.5;cursor:default">Configure a pasta primeiro</div>';}
+  html+='</div>';
+  document.getElementById("modalCorpo").innerHTML=html;
+  abrirModal();
+}
+
+function abrirNovaDemanda(){
+  const novoID=proximoID();
+  const setoresOpts=SETORES.map(s=>'<option value="'+s+'">'+s+'</option>').join("");
+  document.getElementById("modalTitulo").textContent="Nova demanda avulsa";
+  document.getElementById("modalCorpo").innerHTML='<div class="modal-section"><div class="form-grid full"><div class="form-field"><label>ID gerado automaticamente</label><input type="text" value="'+novoID+'" readonly style="background:#F8FAFC;color:#64748B;font-family:monospace"></div></div><div class="form-grid full"><div class="form-field"><label>Encaminhamento</label><textarea id="f-desc" placeholder="Descreva a demanda com verbo de ação..."></textarea></div></div><div class="form-grid"><div class="form-field"><label>Setor</label><select id="f-setor"><option value="">Selecione...</option>'+setoresOpts+'</select></div><div class="form-field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome do responsável"></div></div><div class="form-grid"><div class="form-field"><label>Prazo</label><input type="date" id="f-prazo"></div><div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">Dentro do Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div></div></div><div class="form-acoes"><button class="btn-cancelar" onclick="fecharModal()">Cancelar</button><button class="btn-confirmar" onclick="gerarLinhaDemanda(\''+novoID+'\')">Gerar linha ↗</button></div>';
+  abrirModal();
+}
+
+function gerarLinhaDemanda(id){
+  const desc=document.getElementById("f-desc").value.trim();
+  const setor=document.getElementById("f-setor").value;
+  const resp=document.getElementById("f-resp").value.trim();
+  const prazoRaw=document.getElementById("f-prazo").value;
+  const status=document.getElementById("f-status").value;
+  if(!desc){alert("Preencha o encaminhamento.");return;}
+  if(!setor){alert("Selecione o setor.");return;}
+  const prazo=prazoRaw?prazoRaw.split("-").reverse().join("/"):"";
+  const hoje=new Date().toLocaleDateString("pt-BR");
+  const n=String(ITENS.filter(i=>i["Origem"]==="Avulso").length+1).padStart(2,"0");
+  const linha=id+"\t"+n+"\t"+desc+"\t"+setor+"\t"+(resp||"A definir")+"\t"+prazo+"\t\t"+status+"\tAvulso\t"+hoje+"\t";
+  window._linhaGerada=linha;
+  document.getElementById("modalCorpo").innerHTML='<div class="modal-section"><div class="modal-section-title">Linha gerada — cole na planilha</div><p style="font-size:12.5px;color:#64748B;margin-bottom:10px">Cole na próxima linha vazia da aba ENCAMINHAMENTOS. Depois clique em Atualizar no painel.</p><div class="linha-gerada">'+linha+'</div><div class="form-acoes"><button class="btn-cancelar" onclick="fecharModal()">Fechar</button><button class="btn-confirmar" onclick="copiarLinha()">📋 Copiar linha</button></div></div>';
+}
+
+function copiarLinha(){navigator.clipboard.writeText(window._linhaGerada||"").then(()=>{alert("Linha copiada!");}).catch(()=>{alert("Copie manualmente a linha exibida.");});}
+function abrirModal(){document.getElementById("modalBg").classList.remove("off");}
+function fecharModal(){document.getElementById("modalBg").classList.add("off");}
+document.getElementById("modalBg").addEventListener("click",function(e){if(e.target===this)fecharModal();});
+document.getElementById("dt").textContent=new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})+" · "+new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+carregarDados();
+</script>
+</body>
+</html>
