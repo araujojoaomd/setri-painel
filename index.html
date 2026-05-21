@@ -50,7 +50,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 .td-sit{width:120px}
 .td-orig{width:145px}
 .td-data{width:90px;font-family:'DM Mono',monospace;font-size:11px;color:#64748B}
-.td-acoes{width:88px;text-align:center}
+.td-acoes{width:130px;text-align:center;white-space:nowrap}
 .prazo-orig{font-size:10.5px;color:#64748B;text-decoration:line-through;font-family:'DM Mono',monospace}
 .prazo-rep{font-size:11.5px;font-weight:600;color:#DC2626;font-family:'DM Mono',monospace}
 .prazo-rep::before{content:"↳ "}
@@ -149,7 +149,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
       <div><div class="num c-tot" id="n-tot">—</div><div class="leg">Total ativo</div></div>
     </div>
     <div class="card" id="card-ok" onclick="filtrar('status','DENTRO DO PRAZO')">
-      <div><div class="num c-ok" id="n-ok">—</div><div class="leg">Dentro do prazo</div></div>
+      <div><div class="num c-ok" id="n-ok">—</div><div class="leg">No Prazo</div></div>
     </div>
     <div class="card" id="card-atr" onclick="filtrar('status','EM ATRASO')">
       <div><div class="num c-atr" id="n-atr">—</div><div class="leg">Em atraso</div></div>
@@ -399,7 +399,7 @@ function render(){
     else { const c = classePrazo(prazoO); prazoHtml = '<span class="prazo-s '+c+'">'+prazoO+'</span>'; }
     const bAdge = item["Status"] === "EM ATRASO"
       ? '<span class="badge badge-atr">EM ATRASO</span>'
-      : '<span class="badge badge-ok">DENTRO DO PRAZO</span>';
+      : '<span class="badge badge-ok">No Prazo</span>';
     const nObs = OBS.filter(o => o["ID do Item"] === item["ID"]).length;
     const linkPasta = item["Link da Pasta"] || "";
     tr.innerHTML = '<td class="td-n">'+(item["Nº"]||"—")+'</td>'
@@ -411,8 +411,9 @@ function render(){
       + '<td class="td-orig"><span class="orig-badge '+origClass(item["Origem"])+'">'+(item["Origem"]||"—")+'</span></td>'
       + '<td class="td-data">'+(item["Data"]||"—")+'</td>'
       + '<td class="td-acoes">'
-        + '<button class="btn-icon" onclick=\'abrirObs('+JSON.stringify(item["ID"])+')\'>💬'+(nObs>0?' '+nObs:"")+'</button>'
-        + '<button class="btn-icon" onclick=\'abrirAnexos('+JSON.stringify(item["ID"])+','+JSON.stringify(linkPasta)+')\'>📎</button>'
+        + '<button class="btn-icon" onclick=\'abrirEdicao('+JSON.stringify(item["ID"])+')\' title="Editar">✏️</button>'
+        + '<button class="btn-icon" onclick=\'abrirObs('+JSON.stringify(item["ID"])+')\' title="Observações">💬'+(nObs>0?' '+nObs:"")+'</button>'
+        + '<button class="btn-icon" onclick=\'abrirAnexos('+JSON.stringify(item["ID"])+','+JSON.stringify(linkPasta)+')\' title="Anexos">📎</button>'
       + '</td>';
     tbody.appendChild(tr);
   });
@@ -484,7 +485,7 @@ function abrirNovaDemanda(){
     + '</div>'
     + '<div class="form-grid">'
       + '<div class="form-field"><label>Prazo</label><input type="date" id="f-prazo"></div>'
-      + '<div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">Dentro do Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div>'
+      + '<div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">No Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div>'
     + '</div></div>'
     + '<div class="form-acoes">'
       + '<button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>'
@@ -520,6 +521,71 @@ async function salvarDemanda(){
     await carregarDados();
   } else {
     btn.disabled = false; btn.textContent = "Salvar demanda";
+    toast('Erro: ' + (r.erro || 'falha'), true);
+  }
+}
+
+// === EDITAR DEMANDA ===
+function paraInputDate(s){
+  if (!s) return '';
+  const p = s.split('/');
+  if (p.length !== 3) return '';
+  return p[2] + '-' + p[1].padStart(2,'0') + '-' + p[0].padStart(2,'0');
+}
+
+function abrirEdicao(id){
+  const item = ITENS.find(i => i["ID"] === id);
+  if (!item) return;
+  document.getElementById("modalTitulo").textContent = "Editar — " + id;
+  document.getElementById("modalCorpo").innerHTML =
+      '<div class="modal-section">'
+    + '<div class="form-grid full"><div class="form-field"><label>Encaminhamento</label>'
+    + '<div style="padding:6px 0;font-size:13px;line-height:1.4">'+(item["Encaminhamento"]||'—')+'</div></div></div>'
+    + '<div class="form-grid">'
+      + '<div class="form-field"><label>Setor</label>'
+      + '<input type="text" value="'+(item["Setor"]||'')+'" disabled style="background:#F8FAFC;color:#64748B"></div>'
+      + '<div class="form-field"><label>Responsável</label>'
+      + '<input type="text" id="ed-resp" value="'+(item["Responsável"]||'').replace(/"/g,'&quot;')+'"></div>'
+    + '</div>'
+    + '<div class="form-grid">'
+      + '<div class="form-field"><label>Prazo Original</label>'
+      + '<input type="text" value="'+(item["Prazo Original"]||'')+'" disabled style="background:#F8FAFC;color:#64748B"></div>'
+      + '<div class="form-field"><label>Prazo Repactuado</label>'
+      + '<input type="date" id="ed-prazo-rep" value="'+paraInputDate(item["Prazo Repactuado"])+'"></div>'
+    + '</div>'
+    + '<div class="form-grid full"><div class="form-field"><label>Situação</label>'
+      + '<select id="ed-status">'
+        + '<option value="DENTRO DO PRAZO"'+(item["Status"]==="DENTRO DO PRAZO"?' selected':'')+'>No Prazo</option>'
+        + '<option value="EM ATRASO"'+(item["Status"]==="EM ATRASO"?' selected':'')+'>Em Atraso</option>'
+      + '</select></div></div>'
+    + '</div>'
+    + '<div class="form-acoes">'
+      + '<button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>'
+      + '<button class="btn-confirmar" id="btnSalvarEd" onclick="salvarEdicao(\''+id+'\')">Salvar alterações</button>'
+    + '</div>';
+  abrirModal();
+}
+
+async function salvarEdicao(id){
+  const resp = document.getElementById("ed-resp").value.trim();
+  const status = document.getElementById("ed-status").value;
+  const prazoRep = document.getElementById("ed-prazo-rep").value;
+  const prazoFmt = prazoRep ? prazoRep.split("-").reverse().join("/") : "";
+  const btn = document.getElementById("btnSalvarEd");
+  btn.disabled = true; btn.textContent = "Salvando...";
+  const r = await chamar({
+    acao: 'editar_demanda',
+    id: id,
+    responsavel: resp,
+    status: status,
+    prazoRepactuado: prazoFmt
+  });
+  if (r.ok) {
+    toast('Alterações salvas');
+    fecharModal();
+    await carregarDados();
+  } else {
+    btn.disabled = false; btn.textContent = "Salvar alterações";
     toast('Erro: ' + (r.erro || 'falha'), true);
   }
 }
