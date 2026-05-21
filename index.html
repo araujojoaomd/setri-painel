@@ -61,6 +61,8 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 .badge::before{content:"●";font-size:6px}
 .badge-ok{background:#F0FDF4;color:#15803D}
 .badge-atr{background:#FEF2F2;color:#B91C1C}
+.badge-concl{background:#EFF6FF;color:#1E40AF}
+.badge-canc{background:#F1F5F9;color:#475569}
 .orig-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:138px}
 .orig-r1{background:#EEF4FB;color:#1F3864}
 .orig-r2{background:#FEF3C7;color:#92400E}
@@ -146,7 +148,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 <div style="background:#EEF4FB;border-bottom:1px solid #E2EAF4">
   <div class="cards">
     <div class="card sel" id="card-todos" onclick="filtrar('status','todos')">
-      <div><div class="num c-tot" id="n-tot">—</div><div class="leg">Total ativo</div></div>
+      <div><div class="num c-tot" id="n-tot">—</div><div class="leg">Total em aberto</div></div>
     </div>
     <div class="card" id="card-ok" onclick="filtrar('status','NO PRAZO')">
       <div><div class="num c-ok" id="n-ok">—</div><div class="leg">No Prazo</div></div>
@@ -157,7 +159,14 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
   </div>
 </div>
 <div class="filtros">
+  <select id="fEstado" onchange="filtrar('estado',this.value)">
+    <option value="EM ABERTO">Em aberto</option>
+    <option value="todos">Todos os estados</option>
+    <option value="CONCLUÍDO">Concluído</option>
+    <option value="CANCELADO">Cancelado</option>
+  </select>
   <select id="fSetor" onchange="filtrar('setor',this.value)"><option value="todos">Todos os setores</option></select>
+  <select id="fResp" onchange="filtrar('responsavel',this.value)"><option value="todos">Todos os responsáveis</option></select>
   <select id="fOrigem" onchange="filtrar('origem',this.value)">
     <option value="todas">Toda origem</option>
     <option value="Reunião Gerencial">Reunião Gerencial</option>
@@ -210,7 +219,7 @@ const SETORES = ["GGAT","GMAT","GTI","GAC","GTM","GCR","SETRI","EMPREL","Outros"
 let idToken = null;
 let userEmail = null;
 let ITENS = [], OBS = [];
-let F = {status:"todos", setor:"todos", origem:"todas"};
+let F = {status:"todos", estado:"EM ABERTO", setor:"todos", origem:"todas", responsavel:"todos"};
 
 // === LOGIN ===
 function aguardarGSI(cb){
@@ -285,9 +294,10 @@ async function chamar(payload){
 }
 
 function aplicarDados(r){
-  ITENS = (r.encaminhamentos || []).filter(statusEhAtivo);
+  ITENS = r.encaminhamentos || [];
   OBS = r.observacoes || [];
   popularSetores();
+  popularResponsaveis();
   render();
 }
 
@@ -321,21 +331,50 @@ function popularSetores(){
   });
 }
 
+function popularResponsaveis(){
+  const sel = document.getElementById("fResp");
+  const valAtual = sel.value;
+  while (sel.options.length > 1) sel.remove(1);
+  const nomes = [...new Set(ITENS.map(i => (i["Responsável"]||'').trim()).filter(Boolean))].sort();
+  nomes.forEach(n => {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+  if ([...sel.options].some(o => o.value === valAtual)) sel.value = valAtual;
+}
+
 function filtrar(campo, val){
   F[campo] = val;
   if (campo === "status") {
     document.querySelectorAll(".card").forEach(c => c.classList.remove("sel"));
     const m = {todos:"card-todos","NO PRAZO":"card-ok","EM ATRASO":"card-atr"};
     document.getElementById(m[val]).classList.add("sel");
+    if (val !== "todos") {
+      F.estado = "EM ABERTO";
+      const selEstado = document.getElementById("fEstado");
+      if (selEstado) selEstado.value = "EM ABERTO";
+    }
+  }
+  if (campo === "estado" && val !== "EM ABERTO" && val !== "todos") {
+    F.status = "todos";
+    document.querySelectorAll(".card").forEach(c => c.classList.remove("sel"));
+    document.getElementById("card-todos").classList.add("sel");
   }
   render();
 }
 
 function itensFiltrados(){
   return ITENS.filter(i => {
-    if (F.status !== "todos" && situacaoComputada(i) !== F.status) return false;
+    const e = estadoDoItem(i);
+    if (F.estado !== "todos" && e !== F.estado) return false;
+    if (F.status !== "todos") {
+      if (e !== "EM ABERTO") return false;
+      if (situacaoComputada(i) !== F.status) return false;
+    }
     if (F.setor !== "todos" && i["Setor"] !== F.setor) return false;
     if (F.origem !== "todas" && i["Origem"] !== F.origem) return false;
+    if (F.responsavel !== "todos" && (i["Responsável"]||'').trim() !== F.responsavel) return false;
     return true;
   });
 }
@@ -351,9 +390,14 @@ function situacaoComputada(item){
   const h = new Date(); h.setHours(0,0,0,0);
   return (pp < h) ? "EM ATRASO" : "NO PRAZO";
 }
-function statusEhAtivo(item){
+function estadoDoItem(item){
   const s = (item["Status"]||'').toUpperCase().trim();
-  return s !== "CONCLUÍDO" && s !== "CONCLUIDO" && s !== "CANCELADO";
+  if (s === "CONCLUÍDO" || s === "CONCLUIDO") return "CONCLUÍDO";
+  if (s === "CANCELADO") return "CANCELADO";
+  return "EM ABERTO";
+}
+function statusEhAtivo(item){
+  return estadoDoItem(item) === "EM ABERTO";
 }
 function classePrazo(s){
   if (!s) return "";
@@ -376,15 +420,16 @@ function proximoID(){
 
 function render(){
   const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const tot = ITENS.length;
-  const ok = ITENS.filter(i => situacaoComputada(i) === "NO PRAZO").length;
-  const atr = ITENS.filter(i => situacaoComputada(i) === "EM ATRASO").length;
+  const emAberto = ITENS.filter(i => estadoDoItem(i) === "EM ABERTO");
+  const tot = emAberto.length;
+  const ok = emAberto.filter(i => situacaoComputada(i) === "NO PRAZO").length;
+  const atr = emAberto.filter(i => situacaoComputada(i) === "EM ATRASO").length;
   document.getElementById("n-tot").textContent = tot;
   document.getElementById("n-ok").textContent = ok;
   document.getElementById("n-atr").textContent = atr;
   const msgs = [];
   if (atr) msgs.push(atr + " item(ns) em atraso");
-  const venc3 = ITENS.filter(i => {
+  const venc3 = emAberto.filter(i => {
     const p = ((i["Prazo Repactuado"]||'').trim()) || i["Prazo Original"];
     if (!p || !p.trim()) return false;
     const pp = parsePrazo(p);
@@ -392,7 +437,7 @@ function render(){
     return Math.ceil((pp - hoje)/86400000) <= 3;
   }).length;
   if (venc3) msgs.push(venc3 + " vence(m) em até 3 dias");
-  const semP = ITENS.filter(i => !i["Prazo Original"]).length;
+  const semP = emAberto.filter(i => !i["Prazo Original"]).length;
   if (semP) msgs.push(semP + " sem prazo definido");
   const abar = document.getElementById("abar");
   if (msgs.length) { abar.classList.remove("off"); document.getElementById("atxt").textContent = msgs.join(" · "); }
@@ -413,10 +458,16 @@ function render(){
     if (prazoR && prazoR.trim()) prazoHtml = '<div class="prazo-orig">'+prazoO+'</div><div class="prazo-rep">'+prazoR+'</div>';
     else if (!prazoO || !prazoO.trim()) prazoHtml = '<span class="prazo-s" style="color:#64748B">A definir</span>';
     else { const c = classePrazo(prazoO); prazoHtml = '<span class="prazo-s '+c+'">'+prazoO+'</span>'; }
-    const sit = situacaoComputada(item);
-    const bAdge = sit === "EM ATRASO"
-      ? '<span class="badge badge-atr">Em Atraso</span>'
-      : '<span class="badge badge-ok">No Prazo</span>';
+    const estado = estadoDoItem(item);
+    let bAdge;
+    if (estado === "CONCLUÍDO") bAdge = '<span class="badge badge-concl">Concluído</span>';
+    else if (estado === "CANCELADO") bAdge = '<span class="badge badge-canc">Cancelado</span>';
+    else {
+      const sit = situacaoComputada(item);
+      bAdge = sit === "EM ATRASO"
+        ? '<span class="badge badge-atr">Em Atraso</span>'
+        : '<span class="badge badge-ok">No Prazo</span>';
+    }
     const nObs = OBS.filter(o => o["ID do Item"] === item["ID"]).length;
     const linkPasta = item["Link da Pasta"] || "";
     tr.innerHTML = '<td class="td-n">'+(item["Nº"]||"—")+'</td>'
@@ -516,9 +567,11 @@ async function salvarDemanda(){
   const setor = document.getElementById("f-setor").value;
   const resp = document.getElementById("f-resp").value.trim();
   const prazoRaw = document.getElementById("f-prazo").value;
-  if (!desc) { alert("Preencha o encaminhamento."); return; }
-  if (!setor) { alert("Selecione o setor."); return; }
-  const prazo = prazoRaw ? prazoRaw.split("-").reverse().join("/") : "";
+  if (!desc)     { alert("Preencha o encaminhamento."); return; }
+  if (!setor)    { alert("Selecione o setor.");          return; }
+  if (!resp)     { alert("Preencha o responsável.");     return; }
+  if (!prazoRaw) { alert("Preencha o prazo.");           return; }
+  const prazo = prazoRaw.split("-").reverse().join("/");
   const hoje = new Date().toLocaleDateString("pt-BR");
   const n = String(ITENS.filter(i => i["Origem"] === "Avulso").length + 1).padStart(2, "0");
   const btn = document.getElementById("btnSalvarDem");
@@ -526,7 +579,7 @@ async function salvarDemanda(){
   const r = await chamar({
     acao: 'nova_demanda',
     id: id, numero: n, encaminhamento: desc, setor: setor,
-    responsavel: resp || 'A definir',
+    responsavel: resp,
     prazoOriginal: prazo, prazoRepactuado: '',
     status: '', origem: 'Avulso', data: hoje, linkPasta: ''
   });
@@ -570,7 +623,7 @@ function abrirEdicao(id){
     + '</div>'
     + '<div class="form-grid full"><div class="form-field"><label>Estado</label>'
       + '<select id="ed-status">'
-        + '<option value=""'+(statusEhAtivo(item)?' selected':'')+'>Ativo</option>'
+        + '<option value=""'+(statusEhAtivo(item)?' selected':'')+'>Em aberto</option>'
         + '<option value="CONCLUÍDO"'+((item["Status"]||'').toUpperCase().trim()==='CONCLUÍDO'||(item["Status"]||'').toUpperCase().trim()==='CONCLUIDO'?' selected':'')+'>Concluído</option>'
         + '<option value="CANCELADO"'+((item["Status"]||'').toUpperCase().trim()==='CANCELADO'?' selected':'')+'>Cancelado</option>'
       + '</select>'
