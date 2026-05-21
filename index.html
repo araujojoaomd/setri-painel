@@ -148,11 +148,11 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
     <div class="card sel" id="card-todos" onclick="filtrar('status','todos')">
       <div><div class="num c-tot" id="n-tot">—</div><div class="leg">Total ativo</div></div>
     </div>
-    <div class="card" id="card-ok" onclick="filtrar('status','DENTRO DO PRAZO')">
+    <div class="card" id="card-ok" onclick="filtrar('status','NO PRAZO')">
       <div><div class="num c-ok" id="n-ok">—</div><div class="leg">No Prazo</div></div>
     </div>
     <div class="card" id="card-atr" onclick="filtrar('status','EM ATRASO')">
-      <div><div class="num c-atr" id="n-atr">—</div><div class="leg">Em atraso</div></div>
+      <div><div class="num c-atr" id="n-atr">—</div><div class="leg">Em Atraso</div></div>
     </div>
   </div>
 </div>
@@ -285,7 +285,7 @@ async function chamar(payload){
 }
 
 function aplicarDados(r){
-  ITENS = (r.encaminhamentos || []).filter(i => (i["Status"]||"").toUpperCase() !== "CONCLUÍDO");
+  ITENS = (r.encaminhamentos || []).filter(statusEhAtivo);
   OBS = r.observacoes || [];
   popularSetores();
   render();
@@ -325,7 +325,7 @@ function filtrar(campo, val){
   F[campo] = val;
   if (campo === "status") {
     document.querySelectorAll(".card").forEach(c => c.classList.remove("sel"));
-    const m = {todos:"card-todos","DENTRO DO PRAZO":"card-ok","EM ATRASO":"card-atr"};
+    const m = {todos:"card-todos","NO PRAZO":"card-ok","EM ATRASO":"card-atr"};
     document.getElementById(m[val]).classList.add("sel");
   }
   render();
@@ -333,7 +333,7 @@ function filtrar(campo, val){
 
 function itensFiltrados(){
   return ITENS.filter(i => {
-    if (F.status !== "todos" && i["Status"] !== F.status) return false;
+    if (F.status !== "todos" && situacaoComputada(i) !== F.status) return false;
     if (F.setor !== "todos" && i["Setor"] !== F.setor) return false;
     if (F.origem !== "todas" && i["Origem"] !== F.origem) return false;
     return true;
@@ -341,6 +341,20 @@ function itensFiltrados(){
 }
 
 function parsePrazo(s){ if (!s) return null; const[d,m,y] = s.split("/").map(Number); return new Date(y, m-1, d); }
+function situacaoComputada(item){
+  const pR = (item["Prazo Repactuado"]||'').trim();
+  const pO = (item["Prazo Original"]||'').trim();
+  const p = pR || pO;
+  if (!p) return "NO PRAZO";
+  const pp = parsePrazo(p);
+  if (!pp) return "NO PRAZO";
+  const h = new Date(); h.setHours(0,0,0,0);
+  return (pp < h) ? "EM ATRASO" : "NO PRAZO";
+}
+function statusEhAtivo(item){
+  const s = (item["Status"]||'').toUpperCase().trim();
+  return s !== "CONCLUÍDO" && s !== "CONCLUIDO" && s !== "CANCELADO";
+}
 function classePrazo(s){
   if (!s) return "";
   const p = parsePrazo(s), h = new Date(); h.setHours(0,0,0,0);
@@ -363,17 +377,19 @@ function proximoID(){
 function render(){
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const tot = ITENS.length;
-  const ok = ITENS.filter(i => i["Status"] === "DENTRO DO PRAZO").length;
-  const atr = ITENS.filter(i => i["Status"] === "EM ATRASO").length;
+  const ok = ITENS.filter(i => situacaoComputada(i) === "NO PRAZO").length;
+  const atr = ITENS.filter(i => situacaoComputada(i) === "EM ATRASO").length;
   document.getElementById("n-tot").textContent = tot;
   document.getElementById("n-ok").textContent = ok;
   document.getElementById("n-atr").textContent = atr;
   const msgs = [];
   if (atr) msgs.push(atr + " item(ns) em atraso");
   const venc3 = ITENS.filter(i => {
-    const p = i["Prazo Repactuado"] || i["Prazo Original"];
-    if (!p || i["Status"] === "EM ATRASO") return false;
-    return Math.ceil((parsePrazo(p) - hoje)/86400000) <= 3;
+    const p = ((i["Prazo Repactuado"]||'').trim()) || i["Prazo Original"];
+    if (!p || !p.trim()) return false;
+    const pp = parsePrazo(p);
+    if (!pp || pp < hoje) return false;
+    return Math.ceil((pp - hoje)/86400000) <= 3;
   }).length;
   if (venc3) msgs.push(venc3 + " vence(m) em até 3 dias");
   const semP = ITENS.filter(i => !i["Prazo Original"]).length;
@@ -397,8 +413,9 @@ function render(){
     if (prazoR && prazoR.trim()) prazoHtml = '<div class="prazo-orig">'+prazoO+'</div><div class="prazo-rep">'+prazoR+'</div>';
     else if (!prazoO || !prazoO.trim()) prazoHtml = '<span class="prazo-s" style="color:#64748B">A definir</span>';
     else { const c = classePrazo(prazoO); prazoHtml = '<span class="prazo-s '+c+'">'+prazoO+'</span>'; }
-    const bAdge = item["Status"] === "EM ATRASO"
-      ? '<span class="badge badge-atr">EM ATRASO</span>'
+    const sit = situacaoComputada(item);
+    const bAdge = sit === "EM ATRASO"
+      ? '<span class="badge badge-atr">Em Atraso</span>'
       : '<span class="badge badge-ok">No Prazo</span>';
     const nObs = OBS.filter(o => o["ID do Item"] === item["ID"]).length;
     const linkPasta = item["Link da Pasta"] || "";
@@ -483,9 +500,8 @@ function abrirNovaDemanda(){
       + '<div class="form-field"><label>Setor</label><select id="f-setor"><option value="">Selecione...</option>'+setoresOpts+'</select></div>'
       + '<div class="form-field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome do responsável"></div>'
     + '</div>'
-    + '<div class="form-grid">'
+    + '<div class="form-grid full">'
       + '<div class="form-field"><label>Prazo</label><input type="date" id="f-prazo"></div>'
-      + '<div class="form-field"><label>Status</label><select id="f-status"><option value="DENTRO DO PRAZO">No Prazo</option><option value="EM ATRASO">Em Atraso</option></select></div>'
     + '</div></div>'
     + '<div class="form-acoes">'
       + '<button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>'
@@ -500,7 +516,6 @@ async function salvarDemanda(){
   const setor = document.getElementById("f-setor").value;
   const resp = document.getElementById("f-resp").value.trim();
   const prazoRaw = document.getElementById("f-prazo").value;
-  const status = document.getElementById("f-status").value;
   if (!desc) { alert("Preencha o encaminhamento."); return; }
   if (!setor) { alert("Selecione o setor."); return; }
   const prazo = prazoRaw ? prazoRaw.split("-").reverse().join("/") : "";
@@ -513,7 +528,7 @@ async function salvarDemanda(){
     id: id, numero: n, encaminhamento: desc, setor: setor,
     responsavel: resp || 'A definir',
     prazoOriginal: prazo, prazoRepactuado: '',
-    status: status, origem: 'Avulso', data: hoje, linkPasta: ''
+    status: '', origem: 'Avulso', data: hoje, linkPasta: ''
   });
   if (r.ok) {
     toast('Demanda salva');
@@ -553,11 +568,14 @@ function abrirEdicao(id){
       + '<div class="form-field"><label>Prazo Repactuado</label>'
       + '<input type="date" id="ed-prazo-rep" value="'+paraInputDate(item["Prazo Repactuado"])+'"></div>'
     + '</div>'
-    + '<div class="form-grid full"><div class="form-field"><label>Situação</label>'
+    + '<div class="form-grid full"><div class="form-field"><label>Estado</label>'
       + '<select id="ed-status">'
-        + '<option value="DENTRO DO PRAZO"'+(item["Status"]==="DENTRO DO PRAZO"?' selected':'')+'>No Prazo</option>'
-        + '<option value="EM ATRASO"'+(item["Status"]==="EM ATRASO"?' selected':'')+'>Em Atraso</option>'
-      + '</select></div></div>'
+        + '<option value=""'+(statusEhAtivo(item)?' selected':'')+'>Ativo</option>'
+        + '<option value="CONCLUÍDO"'+((item["Status"]||'').toUpperCase().trim()==='CONCLUÍDO'||(item["Status"]||'').toUpperCase().trim()==='CONCLUIDO'?' selected':'')+'>Concluído</option>'
+        + '<option value="CANCELADO"'+((item["Status"]||'').toUpperCase().trim()==='CANCELADO'?' selected':'')+'>Cancelado</option>'
+      + '</select>'
+      + '<div style="font-size:11px;color:#64748B;margin-top:4px">No Prazo / Em Atraso é calculado automaticamente pela data.</div>'
+      + '</div></div>'
     + '</div>'
     + '<div class="form-acoes">'
       + '<button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>'
