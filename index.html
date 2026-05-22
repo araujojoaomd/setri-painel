@@ -176,6 +176,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
   <div class="sep"></div>
   <span class="cont-label" id="contLabel"></span>
   <button class="btn-atualizar" onclick="carregarDados()">↻ Atualizar</button>
+  <button class="btn-atualizar" onclick="abrirImportacao()">📥 Importar do Drive</button>
   <button class="btn-novo" onclick="abrirNovaDemanda()">+ Nova demanda</button>
 </div>
 <div class="tabela-wrap">
@@ -591,6 +592,63 @@ async function salvarDemanda(){
     btn.disabled = false; btn.textContent = "Salvar demanda";
     toast('Erro: ' + (r.erro || 'falha'), true);
   }
+}
+
+// === IMPORTAR DO DRIVE ===
+async function abrirImportacao(){
+  document.getElementById("modalTitulo").textContent = "Importar do Drive";
+  document.getElementById("modalCorpo").innerHTML = '<div style="padding:30px;text-align:center;color:#64748B;font-size:13px">Buscando arquivos na pasta de importação...</div>';
+  abrirModal();
+  const r = await chamar({acao: 'listar_importacoes'});
+  if (!r.ok) {
+    document.getElementById("modalCorpo").innerHTML = '<div style="padding:14px;background:#FEF2F2;color:#B91C1C;border-radius:8px;font-size:13px">Erro: ' + (r.erro || 'desconhecido') + '</div>';
+    return;
+  }
+  const arquivos = r.arquivos || [];
+  if (!arquivos.length) {
+    document.getElementById("modalCorpo").innerHTML = '<div style="padding:20px;text-align:center;color:#64748B;font-size:13px">Nenhum arquivo novo na pasta de importação.<br><br><span style="font-size:11.5px">A pasta deve conter arquivos <code>.json</code> gerados pelo Assessor SETRI. Arquivos já processados (com prefixo <code>_importado_</code> ou <code>_erro_</code>) são ignorados.</span></div>';
+    return;
+  }
+  let html = '<div class="modal-section"><div class="modal-section-title">Arquivos encontrados</div>';
+  let totalItens = 0;
+  const validos = [];
+  arquivos.forEach(a => {
+    if (a.invalido) {
+      html += '<div style="padding:10px 12px;background:#FEF2F2;border-radius:8px;margin-bottom:6px;font-size:12.5px;border-left:3px solid #B91C1C"><strong>' + a.nome + '</strong><br><span style="color:#B91C1C">JSON inválido — será marcado como <code>_erro_</code></span></div>';
+    } else {
+      totalItens += a.qtd || 0;
+      validos.push(a.id);
+      html += '<div style="padding:10px 12px;background:#F8FAFC;border-radius:8px;margin-bottom:6px;font-size:12.5px;border-left:3px solid #2E5FA3"><strong>' + a.nome + '</strong><br>' + (a.fonte || '(sem fonte)') + ' • <strong>' + (a.qtd || 0) + '</strong> encaminhamento(s)' + (a.data_reuniao ? ' • ' + a.data_reuniao : '') + '</div>';
+    }
+  });
+  html += '</div><div class="form-acoes"><button class="btn-cancelar" onclick="fecharModal()">Cancelar</button>';
+  if (validos.length) {
+    html += '<button class="btn-confirmar" id="btnImportar" onclick=\'executarImportacao(' + JSON.stringify(validos) + ')\'>Importar ' + totalItens + ' itens</button>';
+  }
+  html += '</div>';
+  document.getElementById("modalCorpo").innerHTML = html;
+}
+
+async function executarImportacao(fileIds){
+  const btn = document.getElementById("btnImportar");
+  if (btn) { btn.disabled = true; btn.textContent = "Importando..."; }
+  let totalImp = 0;
+  const erros = [];
+  for (const fileId of fileIds) {
+    const r = await chamar({acao: 'importar_arquivo', fileId: fileId});
+    if (r.ok) {
+      totalImp += r.importados || 0;
+    } else {
+      erros.push({erro: r.erro, detalhes: r.detalhes});
+    }
+  }
+  fecharModal();
+  if (erros.length) {
+    toast(totalImp + ' importado(s) • ' + erros.length + ' arquivo(s) com erro (marcados _erro_)', true);
+  } else {
+    toast(totalImp + ' encaminhamento(s) importado(s)');
+  }
+  await carregarDados();
 }
 
 // === EDITAR DEMANDA ===
