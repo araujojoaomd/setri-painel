@@ -11,7 +11,9 @@
 body{font-family:'DM Sans',sans-serif;background:#F8FAFC;color:#1A2740;min-height:100vh}
 .pnl-header{background:#1F3864;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px rgba(31,56,100,.18)}
 .pnl-header-inner{display:flex;align-items:stretch;max-width:1500px;margin:0 auto}
-.pnl-header-brand{padding:14px 28px;flex:1}
+.pnl-header-brand{padding:14px 28px;flex:1;display:flex;align-items:center;gap:16px}
+.pnl-header-logo{height:46px;width:auto;flex-shrink:0;display:block}
+.pnl-header-brand-text{display:flex;flex-direction:column;min-width:0}
 .pnl-header-brand .supra{font-size:10px;letter-spacing:2px;color:#7BAFD4;text-transform:uppercase;margin-bottom:2px}
 .pnl-header-brand .titulo{font-size:17px;font-weight:700;color:#fff;letter-spacing:-.3px}
 .pnl-header-right{background:#2E5FA3;padding:14px 28px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px}
@@ -134,8 +136,11 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 <div class="pnl-header">
   <div class="pnl-header-inner">
     <div class="pnl-header-brand">
-      <div class="supra">Prefeitura do Recife · SEFIN · SETRI</div>
-      <div class="titulo">Painel de Pendências</div>
+      <img class="pnl-header-logo" src="logo-sefin.png" alt="SEFIN">
+      <div class="pnl-header-brand-text">
+        <div class="supra">Prefeitura do Recife · SEFIN · SETRI</div>
+        <div class="titulo">Painel de Pendências</div>
+      </div>
     </div>
     <div class="pnl-header-right">
       <div class="lbl">Atualizado em</div>
