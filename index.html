@@ -65,6 +65,7 @@ td{padding:11px 14px;font-size:13px;vertical-align:middle;overflow:hidden}
 .badge-atr{background:#FEF2F2;color:#B91C1C}
 .badge-concl{background:#EFF6FF;color:#1E40AF}
 .badge-canc{background:#F1F5F9;color:#475569}
+.tag-anexo{display:inline-block;background:#EFF6FF;color:#1E40AF;font-size:9.5px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:8px;vertical-align:middle;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;border:1px solid #DBEAFE}
 .orig-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:138px}
 .orig-r1{background:#EEF4FB;color:#1F3864}
 .orig-r2{background:#FEF3C7;color:#92400E}
@@ -478,8 +479,10 @@ function render(){
     }
     const nObs = OBS.filter(o => o["ID do Item"] === item["ID"]).length;
     const linkPasta = item["Link da Pasta"] || "";
+    const temAnexo = linkPasta && linkPasta.trim().startsWith("http");
+    const tagAnexo = temAnexo ? ' <span class="tag-anexo">📎 anexo</span>' : '';
     tr.innerHTML = '<td class="td-n">'+(item["Nº"]||"—")+'</td>'
-      + '<td class="td-desc">'+(item["Encaminhamento"]||"—")+'</td>'
+      + '<td class="td-desc">'+(item["Encaminhamento"]||"—")+tagAnexo+'</td>'
       + '<td class="td-setor">'+(item["Setor"]||"—")+'</td>'
       + '<td class="td-resp">'+(item["Responsável"]||"—")+'</td>'
       + '<td class="td-prazo">'+prazoHtml+'</td>'
