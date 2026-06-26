@@ -531,17 +531,60 @@ function abrirAnexos(id, pasta){
   document.getElementById("modalTitulo").textContent = "Anexos — " + id;
   let html = '<div class="modal-section"><div class="modal-section-title">Pasta no Drive</div>';
   if (pasta && pasta.startsWith("http")) {
-    html += '<a class="pasta-link" href="'+pasta+'" target="_blank">📁 Abrir pasta no Drive</a></div>'
-         + '<div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div>'
-         + '<div class="upload-area" onclick="window.open(\''+pasta+'\',\'_blank\')">📤 Clique para abrir a pasta e fazer upload ou excluir arquivos no Drive</div>';
+    html += '<a class="pasta-link" href="'+pasta+'" target="_blank">📁 Abrir pasta no Drive</a></div>';
   } else {
-    html += '<div class="sem-pasta">Pasta não configurada. Adicione o link na planilha (coluna K).</div></div>'
-         + '<div class="modal-section"><div class="modal-section-title">Gerenciar arquivos</div>'
-         + '<div class="upload-area" style="opacity:.5;cursor:default">Configure a pasta primeiro</div>';
+    html += '<div class="sem-pasta">Nenhum arquivo anexado ainda. A pasta será criada no Drive automaticamente no primeiro upload.</div></div>';
   }
-  html += '</div>';
+  html += '<div class="modal-section"><div class="modal-section-title">Anexar novo arquivo</div>'
+       + '<input type="file" id="anexo-input" style="display:none" onchange="processarAnexo(\''+id+'\')">'
+       + '<button class="btn-confirmar" id="btnAnexar" onclick="document.getElementById(\'anexo-input\').click()">📤 Selecionar arquivo</button>'
+       + '<div id="anexo-status" style="margin-top:12px;font-size:13px;color:#64748B"></div>'
+       + '<div style="font-size:11px;color:#64748B;margin-top:10px">Limite: ~25 MB por arquivo. Qualquer formato (PDF, Word, Excel, imagens, ZIP, etc).</div>'
+       + '</div>';
   document.getElementById("modalCorpo").innerHTML = html;
   abrirModal();
+}
+
+async function processarAnexo(id){
+  const fileInput = document.getElementById("anexo-input");
+  const file = fileInput.files[0];
+  if (!file) return;
+  const tamanhoMB = file.size / (1024 * 1024);
+  const statusEl = document.getElementById("anexo-status");
+  const btn = document.getElementById("btnAnexar");
+  if (tamanhoMB > 25) {
+    statusEl.innerHTML = '<span style="color:#B91C1C">Arquivo muito grande ('+tamanhoMB.toFixed(1)+' MB). Máximo 25 MB.</span>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = "Enviando...";
+  statusEl.textContent = "Enviando " + file.name + " (" + tamanhoMB.toFixed(1) + " MB)...";
+  const reader = new FileReader();
+  reader.onload = async function() {
+    const base64 = reader.result.split(',')[1];
+    const r = await chamar({
+      acao: 'anexar_arquivo',
+      idDemanda: id,
+      nomeArquivo: file.name,
+      mimeType: file.type,
+      conteudoBase64: base64
+    });
+    if (r.ok) {
+      statusEl.innerHTML = '<span style="color:#15803D">✓ Anexado: <a href="'+r.fileUrl+'" target="_blank" style="color:#15803D;font-weight:600">'+r.fileName+'</a></span>';
+      btn.textContent = "📤 Anexar outro arquivo";
+      btn.disabled = false;
+      fileInput.value = '';
+      toast('Arquivo anexado');
+      await carregarDados();
+    } else {
+      statusEl.innerHTML = '<span style="color:#B91C1C">Erro: ' + (r.erro || 'desconhecido') + '</span>';
+      btn.disabled = false; btn.textContent = "📤 Selecionar arquivo";
+    }
+  };
+  reader.onerror = function() {
+    statusEl.innerHTML = '<span style="color:#B91C1C">Erro lendo o arquivo</span>';
+    btn.disabled = false; btn.textContent = "📤 Selecionar arquivo";
+  };
+  reader.readAsDataURL(file);
 }
 
 // === NOVA DEMANDA ===
