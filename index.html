@@ -256,21 +256,63 @@ async function aposLogin(response){
     userEmail = payload.email;
   } catch(e) { userEmail = '—'; }
   document.getElementById('loginErro').style.display = 'none';
-  document.getElementById('loginLoading').style.display = '';
+  // Se este navegador já carregou o painel antes com a mesma conta, mostra a última leitura na hora
+  // e atualiza em segundo plano. Se o servidor negar o acesso, o cache é apagado e volta pro login.
+  const cache = lerCache(userEmail);
+  if (cache) {
+    mostrarApp();
+    aplicarDados(cache, true);
+    document.getElementById('dt').textContent = 'Atualizando…';
+  } else {
+    document.getElementById('loginLoading').style.display = '';
+  }
   const r = await chamar({acao:'ler'});
   document.getElementById('loginLoading').style.display = 'none';
   if (r.ok) {
-    document.getElementById('loginTela').style.display = 'none';
-    document.getElementById('appConteudo').style.display = '';
-    document.getElementById('userEmail').textContent = userEmail;
+    mostrarApp();
     aplicarDados(r);
-  } else if (r.erro === 'sem_acesso') {
+    return;
+  }
+  const erroDeAcesso = r.erro === 'sem_acesso' || r.erro === 'token_invalido' || r.erro === 'sem_token';
+  if (cache && !erroDeAcesso) {
+    document.getElementById('dt').textContent = 'Sem conexão';
+    toast('Não foi possível atualizar. Mostrando a última leitura.', true);
+    return;
+  }
+  apagarCache();
+  document.getElementById('appConteudo').style.display = 'none';
+  document.getElementById('loginTela').style.display = '';
+  if (r.erro === 'sem_acesso') {
     mostrarErroLogin('A conta ' + userEmail + ' não tem acesso à planilha. Peça acesso ao administrador e tente novamente.');
-  } else if (r.erro === 'token_invalido' || r.erro === 'sem_token') {
+  } else if (erroDeAcesso) {
     mostrarErroLogin('Sessão inválida. Tente entrar novamente.');
   } else {
     mostrarErroLogin('Erro: ' + (r.erro || 'desconhecido'));
   }
+}
+
+function mostrarApp(){
+  document.getElementById('loginTela').style.display = 'none';
+  document.getElementById('appConteudo').style.display = '';
+  document.getElementById('userEmail').textContent = userEmail;
+}
+
+// === CACHE LOCAL (última leitura, por conta) ===
+const CACHE_CHAVE = 'setri-painel-cache-v1';
+function lerCache(email){
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE_CHAVE) || 'null');
+    if (c && c.email === email && Array.isArray(c.encaminhamentos)) return c;
+  } catch(e) {}
+  return null;
+}
+function salvarCache(){
+  try {
+    localStorage.setItem(CACHE_CHAVE, JSON.stringify({email: userEmail, em: Date.now(), encaminhamentos: ITENS, observacoes: OBS}));
+  } catch(e) {}
+}
+function apagarCache(){
+  try { localStorage.removeItem(CACHE_CHAVE); } catch(e) {}
 }
 
 function mostrarErroLogin(msg){
@@ -280,6 +322,7 @@ function mostrarErroLogin(msg){
 }
 
 function sair(){
+  apagarCache();
   google.accounts.id.disableAutoSelect();
   idToken = null;
   userEmail = null;
@@ -305,27 +348,64 @@ async function chamar(payload){
   }
 }
 
-function aplicarDados(r){
+function aplicarDados(r, vindoDoCache){
   ITENS = r.encaminhamentos || [];
   OBS = r.observacoes || [];
   popularSetores();
   popularResponsaveis();
   render();
+  if (!vindoDoCache) {
+    salvarCache();
+    document.getElementById("dt").textContent = agoraFormatado();
+  }
+}
+
+function agoraFormatado(){
+  const d = new Date();
+  return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric"})
+    + " · " + d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
 }
 
 // === DADOS ===
-async function carregarDados(){
+async function carregarDados(silencioso){
   if (!idToken) return;
-  document.getElementById("loading").style.display = "block";
-  document.getElementById("tab").style.display = "none";
-  document.getElementById("vazio").style.display = "none";
+  if (!silencioso) {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("tab").style.display = "none";
+    document.getElementById("vazio").style.display = "none";
+  }
   const r = await chamar({acao:'ler'});
   if (!r.ok) {
-    document.getElementById("loading").textContent = "Erro: " + (r.erro || 'desconhecido');
+    if (silencioso) toast('Não foi possível atualizar a lista', true);
+    else document.getElementById("loading").textContent = "Erro: " + (r.erro || 'desconhecido');
     return;
   }
+  // não sobrescreve a tela enquanto outra gravação ainda está a caminho
+  if (gravacoesPendentes > 0) { if (!silencioso) render(); return; }
   aplicarDados(r);
-  toast('Dados atualizados');
+  if (!silencioso) toast('Dados atualizados');
+}
+
+// === GRAVAÇÃO OTIMISTA ===
+// A tela muda na hora; a gravação segue em segundo plano. Se falhar, desfaz e avisa.
+// Se o Apps Script já devolver os dados atualizados na resposta, usa direto; senão relê em segundo plano.
+let gravacoesPendentes = 0;
+async function gravar(payload, desfazer, msgOk){
+  gravacoesPendentes++;
+  const r = await chamar(payload);
+  gravacoesPendentes--;
+  if (!r.ok) {
+    desfazer();
+    render();
+    toast('Erro ao salvar: ' + (r.erro || 'falha') + '. A alteração foi desfeita.', true);
+    return r;
+  }
+  if (msgOk) toast(msgOk);
+  if (gravacoesPendentes === 0) {
+    if (r.encaminhamentos) aplicarDados(r);
+    else carregarDados(true);
+  }
+  return r;
 }
 
 function popularSetores(){
@@ -515,18 +595,14 @@ function abrirObs(id){
 async function salvarObs(id){
   const txt = document.getElementById("novaObs").value.trim();
   if (!txt) return;
-  const btn = document.getElementById("btnSalvarObs");
-  btn.disabled = true; btn.textContent = "Salvando...";
   const hoje = new Date().toLocaleDateString("pt-BR");
-  const r = await chamar({acao:'nova_observacao', idItem:id, data:hoje, observacao:txt});
-  if (r.ok) {
-    toast('Observação salva');
-    fecharModal();
-    await carregarDados();
-  } else {
-    btn.disabled = false; btn.textContent = "Salvar";
-    toast('Erro: ' + (r.erro || 'falha'), true);
-  }
+  const nova = {"ID do Item": id, "Data": hoje, "Observação": txt};
+  OBS.push(nova);
+  fecharModal();
+  render();
+  await gravar({acao:'nova_observacao', idItem:id, data:hoje, observacao:txt},
+    function(){ OBS = OBS.filter(o => o !== nova); },
+    'Observação salva');
 }
 
 // === ANEXOS ===
@@ -577,7 +653,7 @@ async function processarAnexo(id){
       btn.disabled = false;
       fileInput.value = '';
       toast('Arquivo anexado');
-      await carregarDados();
+      await carregarDados(true);
     } else {
       statusEl.innerHTML = '<span style="color:#B91C1C">Erro: ' + (r.erro || 'desconhecido') + '</span>';
       btn.disabled = false; btn.textContent = "📤 Selecionar arquivo";
@@ -628,23 +704,19 @@ async function salvarDemanda(){
   const prazo = prazoRaw.split("-").reverse().join("/");
   const hoje = new Date().toLocaleDateString("pt-BR");
   const n = String(ITENS.filter(i => i["Origem"] === "Avulso").length + 1).padStart(2, "0");
-  const btn = document.getElementById("btnSalvarDem");
-  btn.disabled = true; btn.textContent = "Salvando...";
-  const r = await chamar({
+  const novo = {"ID": id, "Nº": n, "Encaminhamento": desc, "Setor": setor, "Responsável": resp,
+    "Prazo Original": prazo, "Prazo Repactuado": "", "Status": "", "Origem": "Avulso", "Data": hoje, "Link da Pasta": ""};
+  ITENS.push(novo);
+  fecharModal();
+  popularResponsaveis();
+  render();
+  await gravar({
     acao: 'nova_demanda',
     id: id, numero: n, encaminhamento: desc, setor: setor,
     responsavel: resp,
     prazoOriginal: prazo, prazoRepactuado: '',
     status: '', origem: 'Avulso', data: hoje, linkPasta: ''
-  });
-  if (r.ok) {
-    toast('Demanda salva');
-    fecharModal();
-    await carregarDados();
-  } else {
-    btn.disabled = false; btn.textContent = "Salvar demanda";
-    toast('Erro: ' + (r.erro || 'falha'), true);
-  }
+  }, function(){ ITENS = ITENS.filter(i => i !== novo); }, 'Demanda salva');
 }
 
 // === IMPORTAR DO DRIVE ===
@@ -701,7 +773,7 @@ async function executarImportacao(fileIds){
   } else {
     toast(totalImp + ' encaminhamento(s) importado(s)');
   }
-  await carregarDados();
+  await carregarDados(true);
 }
 
 // === EDITAR DEMANDA ===
@@ -753,23 +825,22 @@ async function salvarEdicao(id){
   const status = document.getElementById("ed-status").value;
   const prazoRep = document.getElementById("ed-prazo-rep").value;
   const prazoFmt = prazoRep ? prazoRep.split("-").reverse().join("/") : "";
-  const btn = document.getElementById("btnSalvarEd");
-  btn.disabled = true; btn.textContent = "Salvando...";
-  const r = await chamar({
+  const item = ITENS.find(i => i["ID"] === id);
+  if (!item) return;
+  const antes = {"Responsável": item["Responsável"], "Status": item["Status"], "Prazo Repactuado": item["Prazo Repactuado"]};
+  item["Responsável"] = resp;
+  item["Status"] = status;
+  item["Prazo Repactuado"] = prazoFmt;
+  fecharModal();
+  popularResponsaveis();
+  render();
+  await gravar({
     acao: 'editar_demanda',
     id: id,
     responsavel: resp,
     status: status,
     prazoRepactuado: prazoFmt
-  });
-  if (r.ok) {
-    toast('Alterações salvas');
-    fecharModal();
-    await carregarDados();
-  } else {
-    btn.disabled = false; btn.textContent = "Salvar alterações";
-    toast('Erro: ' + (r.erro || 'falha'), true);
-  }
+  }, function(){ Object.assign(item, antes); popularResponsaveis(); }, 'Alterações salvas');
 }
 
 // === MODAL / TOAST ===
